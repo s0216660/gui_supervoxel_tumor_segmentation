@@ -1,10 +1,7 @@
-from tkFileDialog import askopenfilename
 from tkFileDialog import askdirectory
 
 import os
-import threading
 import shutil
-import time
 
 from Tkinter import Scrollbar
 from Tkinter import RIGHT
@@ -17,28 +14,17 @@ from ttk import Entry
 from Tkinter import Text
 from Tkinter import Listbox
 from Tkinter import Tk
-from Tkinter import DISABLED
 from Tkinter import FLAT
-from Tkinter import HORIZONTAL
 from Tkinter import END
 
 from ttk import Style
-from ttk import Progressbar
 
 from my_frame import MyFrame
 
-from skull_stripping import skull
-
-#Three cascade steps in the tumor segmentation method.
-from segmentation import supervoxel_initializer
-from segmentation import em_segmenter
-from segmentation import supervoxel_postprocessor
-
-import visualise_volumes
+import visualise_volumes as vv
 import help_window
-import main
 
-from segmentation.utilities import own_itk as oitk
+import own_itk as oitk
 
 #########################################################################
 
@@ -54,7 +40,7 @@ MODALITY_PREFIXES = ['t1','t1c','t2','flair'] # for the modality paths
 
 #########################################################################
 
-class SelectPaths(main.SelectPaths):
+class SelectPaths(object):
 
     def __init__(self, topframe=None):
 
@@ -72,7 +58,7 @@ class SelectPaths(main.SelectPaths):
 
     def add_ui_components(self):
 
-	# Creating the frames.
+        # Creating the frames.
         self.sub_frame1 = Frame(self)
         self.sub_frame1.grid(column=0, row=0)
 
@@ -92,7 +78,7 @@ class SelectPaths(main.SelectPaths):
         sub_frame221.grid(row=1, column=0)
 
 
-	# Creating the top-menu buttons.
+        # Creating the top-menu buttons.
         self.visualise_button = Button(self.sub_frame1,
                                        text="Visualise",
                                        command=self.start_visualisation)
@@ -103,7 +89,7 @@ class SelectPaths(main.SelectPaths):
                                   command=self.open_help)
         self.help_button.grid(row=0, column=2)
 
-	# Creating the select modality path.
+        # Creating the select modality path.
         self.modality_label = Label(sub_frame21,
                                     text="Path to patient folders",
                                     relief=FLAT)
@@ -117,7 +103,7 @@ class SelectPaths(main.SelectPaths):
                                            command=self.choose_directory_and_import)
         self.modality_path_button.grid(row=2, column=2)
 
-	# Creating the patients listbox.
+        # Creating the patients listbox.
         self.label_patients = Label(sub_frame22, text="Patients")
         self.label_patients.grid(row=0, column=0)
 
@@ -149,7 +135,8 @@ class SelectPaths(main.SelectPaths):
 # ***** EVENTS - START********************************
 
     def start_visualisation(self):
-	""" Launch visualisation module. Linked to self.visualise_button (Button). """
+        """ Launch visualisation module. 
+        Linked to self.visualise_button (Button). """
 
         patient_path = os.path.join(self.patient_folder_path,
                                     'processed_'+self.patients[0])
@@ -168,17 +155,19 @@ class SelectPaths(main.SelectPaths):
         
         mod_paths = []
         for mod in MODALITY_PREFIXES:
-            mod_paths.append(os.path.join(patient_path, mod+'_'+self.patients[0]+'.nii.gz'))
+            mod_paths.append(\
+                    os.path.join(patient_path, 
+                                 mod+'_'+self.patients[0]+'.nii.gz'))
 
-        vis = visualise_volumes.VisualVolumes(image_paths=mod_paths,
-                                              segm_path=segmentation_path,
-                                              supervoxel_id_path=supervoxel_path,
-                                              topframe=self.master)
-        self.import_existing_patients()
+        vis = vv.VisualVolumes(image_paths=mod_paths,
+                               segm_path=segmentation_path,
+                               supervoxel_id_path=supervoxel_path,
+                               topframe=self.master)
         vis.tkraise()
 
     def listbox_changed(self, event):
-	""" Add a patient upon selection in the listbox. Linked to self.listbox_patients (Listbox). """
+        """ Add a patient upon selection in the listbox. 
+        Linked to self.listbox_patients (Listbox). """
 
         indices = list(self.listbox_patients.curselection())
         selected_idx = self.listbox_patients.nearest(event.y)
@@ -186,13 +175,13 @@ class SelectPaths(main.SelectPaths):
         if selected_idx == -1:
             return
 
-	# remove or add a patient index
+        # remove or add a patient index
         if selected_idx not in indices:
             indices.append(selected_idx)
         else:
             indices.remove(selected_idx)
 
-	# set self.patients based on the new patient indices and enable visualisation if only one is selected.
+        # set self.patients based on the new patient indices and enable visualisation if only one is selected.
         self.patients = []
         for idx in indices:
             self.patients.append(self.listbox_patients.get(idx).split(' ')[0])
@@ -202,8 +191,9 @@ class SelectPaths(main.SelectPaths):
             self.visualise_button['state'] = 'disabled'
 
     def choose_directory_and_import(self):
-	""" Allow the user to select an import path. 
-	Linked to self.modality_path_button (Button), and sets self.modality_path_entry (Entry). """
+        """ Allow the user to select an import path. 
+	    Linked to self.modality_path_button (Button), 
+	    and sets self.modality_path_entry (Entry). """
 
         initialdir = DATA_PATH
         msg = 'Select directory containing patients'
@@ -235,52 +225,51 @@ class SelectPaths(main.SelectPaths):
                 self._convert_and_copy_files(patient)
 
             # We make a list of patients with only ids for the listbox.
-            self.patients = []
-            for patient in patients_validation:       
-                if not patient.startswith('processed_'):
-                    self.patients.append(patient)
-            self.patients.sort()
-            self.populate_patient_listbox(self.patients)
-
-            self.status_text.configure(state='normal')
-            self.status_text.insert(END, '\n'+str(self.status_text_entry_number)+'- Patients are imported.', 'entry')
-            self.status_text_entry_number += 1
-            self.status_text.insert(END, '\n'+str(self.status_text_entry_number)+'- Please select a patient to proceed', 'entry')
-            self.status_text_entry_number += 1
-            self.status_text.configure(state='disabled')
+            self.list_existing_patients(patients_validation)
 
     def _convert_and_copy_files(self, patient):
 
         # Getting the list of modalities for every patient.
-        modalities = os.listdir(os.path.join(self.patient_folder_path,
-                                             patient))
+        patient_path = os.path.join(self.patient_folder_path, patient)
+        modalities = os.listdir(patient_path)
 
-        # Checks if the patient is full of nifti files
-        for modality in modalities:
-
-            if any([modality.startswith(prefix+'.') for prefix in \
-                   [SEGM_PREFIX, SUPERVOXEL_PREFIX, MODALITY_PREFIXES]]):
-		if any([modality.endswith(ext) for ext in ['.mha', '.nii', '.nii.gz']]):
-                    name_modality = modality.split('.')[0]
-    	            shutil.copyfile(os.path.join(self.patient_folder_path,
-	                                     patient,
-	                                     modality),
-	                        os.path.join(self.patient_folder_path,
-	                                     'processed_'+patient,
-	                                     name_modality+'_'+patient+'.nii.gz'))
-		    
-        else:
-            print("Wrong format.")
+        # Look for paths
+        for prefix in [SEGM_PREFIX, SUPERVOXEL_PREFIX] + [MODALITY_PREFIXES]:
             
-
+            candidates = [modality \
+                          for modality in modalities \
+                          if modality.startswith(prefix+'.')]
+            if len(candidates) != 1:
+                err = '%s file not identified. Look for ambiguities in %s.' \
+                        % (prefix, patient_path)
+                raise RuntimeError(err)
+            modality = candidates[0]
+            
+            if not any([modality.endswith(ext) 
+                        for ext in ['.mha', '.nii', '.nii.gz']]):
+                err = "Image format not recognized: %s" % modality
+                raise RuntimeError(err)
+            
+            shutil.copyfile(os.path.join(self.patient_folder_path,
+                                         patient,
+                                         modality),
+                            os.path.join(self.patient_folder_path,
+                                         'processed_'+patient,
+                                         prefix+'_'+patient+'.nii.gz'))
+            
+    def open_help(self):
+        
+        self.help_window = help_window.HelpWindow()
+        self.help_window.tkraise()
+            
 # ***** EVENTS - END***************************
 
-
-    def import_existing_patients(self):
+    def list_existing_patients(self, patients=None):
         print("Importing existing patients")
         # We make a list of patients with only ids for the listbox.
-
-        patients_validation = os.listdir(self.patient_folder_path)      
+        
+        if patients is None:
+            patients_validation = os.listdir(self.patient_folder_path)      
         self.patients = []
         for patient in patients_validation:       
             if not patient.startswith('processed_'):
@@ -290,15 +279,13 @@ class SelectPaths(main.SelectPaths):
 
         if self.listbox_patients.size() > 0:
             self.listbox_patients.selection_set(0)
-
-    def choosePath(self, entry):
-        initialdir = DATA_PATH
-        msg = 'Please select an image'
-        path = askopenfilename(title=msg,
-                               filetypes = [('Image files',('.nii','.mha','.nii.gz'))],
-                               initialdir=initialdir)
-        entry.delete(0, END)
-        entry.insert(0, str(path))
+            
+        self.status_text.configure(state='normal')
+        self.status_text.insert(END, '\n'+str(self.status_text_entry_number)+'- Patients are imported.', 'entry')
+        self.status_text_entry_number += 1
+        self.status_text.insert(END, '\n'+str(self.status_text_entry_number)+'- Please select a patient to proceed', 'entry')
+        self.status_text_entry_number += 1
+        self.status_text.configure(state='disabled')            
 
     def populate_patient_listbox(self, patients):
 
@@ -325,4 +312,3 @@ if __name__ == "__main__":
     select_paths = SelectPaths(topframe=tk_window)
     select_paths.start()
     tk_window.withdraw()
-

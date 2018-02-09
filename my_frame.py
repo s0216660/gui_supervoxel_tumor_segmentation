@@ -18,8 +18,8 @@ class MyFrame(Frame):
         self.master.resizable(width=False, height=False)
         # Create main frame
         Frame.__init__(self, self.master,  padding="3 3 3 3")
-	self.screen_width = self.master.winfo_screenwidth()
-	self.screen_height = self.master.winfo_screenheight()
+        self.screen_width = self.master.winfo_screenwidth()
+        self.screen_height = self.master.winfo_screenheight()
         self.pack()
         
         # Set a bit of style
@@ -35,6 +35,7 @@ class MyFrame(Frame):
         """ Start the main widget. """
         
         self.master.mainloop()
+        
     def quit(self, terminal=False):
         """Quit this gui widget, if terminal, also quit code execution."""
         

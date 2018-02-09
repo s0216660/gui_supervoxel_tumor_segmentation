@@ -25,22 +25,30 @@ from tkFileDialog import asksaveasfilename
 
 import numpy as np
 
-from PIL import Image as ImagePIL
 from PIL import ImageTk
 from PIL import ImageFilter
+from PIL import Image as ImagePIL
 
 from my_frame import MyFrame
-
 import LinkedScrollBar as lsb
 import matrix_slicing as ms
+import own_itk as oitk
+import image_pil as pil
+import supervoxel_operations as utils
 
-from segmentation.utilities import own_itk as oitk
-from segmentation.supervoxels import supervoxel_operations as utils
+######################################################################
 
+edema_yellow = (205, 190, 35)
+non_active_green = (100, 165, 50)
+active_red = (220, 50, 0)
+selected = (0, 0, 255)
+
+######################################################################
 
 class VisualVolumes(MyFrame):
     #Paths need to be changed when used in a different environment
     #Also segmentation accepts only one file now!
+    
     def __init__(self,
                  image_paths=None,
                  segm_path=None,
@@ -52,7 +60,7 @@ class VisualVolumes(MyFrame):
         Style().theme_use('clam')
         self.set_title('Visualise Volumes')
 
-	
+
         self.set_variables(image_paths,
                            segm_path=segm_path,
                            supervoxel_id_path=supervoxel_id_path)
@@ -97,9 +105,12 @@ class VisualVolumes(MyFrame):
     def _set_images(self, segm_path, image_paths, supervoxel_id_path):
         """ Set and check image and segmentation arrays and dimensions. """
 
-        #Shapes for all modalities
+        # Shapes for all modalities
         shapes = [oitk.get_itk_array(path).shape \
                   for path in image_paths]
+        if len(set(shapes)) != 1:
+            err = 'Images are not of same dimension'
+            raise  ValueError(err)
         self.dim = shapes[0]
 
         # set the images and the image paths
@@ -107,26 +118,26 @@ class VisualVolumes(MyFrame):
                        for path in image_paths]
         self.images_original = np.copy(self.images)
 
-        #Get segmentation from segmentation path if given
+        # Get segmentation from segmentation path if given
         self.segm = None
         self.segm_path = None
         if segm_path is not None:
             self.segm = oitk.get_itk_array(segm_path)
             self.segm_path = segm_path
 
-        #Get supervoxels from supervoxel path if given
+        # Get supervoxels from supervoxel path if given
         self.supervoxel_border = None
-        if self.segm is not None and supervoxel_id_path is not None:
+        self.supervoxel_id = None
+        if supervoxel_id_path is not None:
 
+            # get supervoxels and adapt if segmentation is at hand
             self.supervoxel_id = oitk.get_itk_array(supervoxel_id_path)
+            if self.segm is not None:
+                self.supervoxel_id = utils.adapt_borders(self.segm, 
+                                                         self.supervoxel_id)
 
-            #Adapting borders of the supervoxels
-            self.supervoxel_id = utils.adapt_borders(self.segm, self.supervoxel_id)
-
-
-            #Get borders of the supervoxels
+            # get borders of the supervoxels
             self.supervoxel_border = utils.get_borders(self.supervoxel_id)
-
 
     ########## Frame setting ############
 
@@ -162,14 +173,13 @@ class VisualVolumes(MyFrame):
         # create a sub frame to display the images
         self._imagelabel = [None for _ in range(self.image_nb)]
         self._image_view = [None for _ in range(self.image_nb)]
-        _descrlabel = [None for i in range(self.image_nb)]
-
+        _descrlabel = [None for _ in range(self.image_nb)]
 
         # descriptions of the images defaults to their path basenames
-        descriptions = [os.path.basename(image_paths[i]) for i in range(self.image_nb)]
+        descriptions = [os.path.basename(image_paths[i]) 
+                        for i in range(self.image_nb)]
 
         self.histogram_sliders = []
-
         for i in range(self.image_nb):
 
             _sub_pic_frame = Frame(pic_frame)
@@ -183,14 +193,13 @@ class VisualVolumes(MyFrame):
             _descrlabel[i].grid(column=0, row=0)
 
 
-            # set Label for the images
+            # set Label to depict the images
             self._imagelabel[i] = Label(_sub_pic_frame)
             self._imagelabel[i].grid(column=0, row=1)
 
 
-	    # set the intensity slides
+            # set Scales for the intensity slides
             _sub_sub_frame = Frame(_sub_pic_frame)
-
             _sub_sub_frame.grid(column=0,
                                 row=2)
 
@@ -217,17 +226,14 @@ class VisualVolumes(MyFrame):
 
             self.histogram_sliders.append(intensity_scale1)
             self.histogram_sliders.append(intensity_scale2)
-            intensity_scale1.bind("<B1-Motion>", self._change_intensity)
-            intensity_scale2.bind("<B1-Motion>", self._change_intensity)
-
-
+            intensity_scale1.bind("<B1-Motion>", self.change_intensity)
+            intensity_scale2.bind("<B1-Motion>", self.change_intensity)
 
             # Attach commands to the image frames
-            self._imagelabel[i].bind("<Button-1>", self._click_image)
-            self._imagelabel[i].bind("<Button-3>", self._label_change)
-            self._imagelabel[i].bind("<Button 4>", self._slice_up)
-            self._imagelabel[i].bind("<Button 5>", self._slice_down)
-
+            self._imagelabel[i].bind("<Button-1>", self.click_image)
+            self._imagelabel[i].bind("<Button-3>", self.label_change)
+            self._imagelabel[i].bind("<Button 4>", self.slice_up)
+            self._imagelabel[i].bind("<Button 5>", self.slice_down)
 
     def add_slice_bar(self, slice_frame):
         """Add a slice selection options to slice_frame.
@@ -255,8 +261,8 @@ class VisualVolumes(MyFrame):
         _goto.grid(column=2, row=0, sticky=['w', 'e'])
 
         this_new_slice = Entry(slice_frame, width=6)
-        this_new_slice.bind('<Return>', self._goto_slice)
-        this_new_slice.bind('<KP_Enter>', self._goto_slice)
+        this_new_slice.bind('<Return>', self.goto_slice)
+        this_new_slice.bind('<KP_Enter>', self.goto_slice)
         this_new_slice.grid(column=3, row=0, sticky=['w', 'e'])
 
         self.image_scale = (self.screen_width - 200) / 8
@@ -276,44 +282,7 @@ class VisualVolumes(MyFrame):
 
         self._slice_label_number = this_slice_label_number
         self._new_slice = this_new_slice
-        self.update_slice_scroll()
-
-    def update_slice_scroll(self):
-
-        max_slice = self._get_max_slice()
-        min_slice = self._get_min_slice()
-        diff = max_slice - min_slice
-        new_value = int(min_slice + np.floor(diff / 2))
-        self._slice_scroll.set_value(new_value)
-
-
-    ########## allow to change slices ###########################
-
-    def _get_label_supervoxel(self, coordinates):
-        """ Gets the label of the selected supervoxel."""
-
-        #Gets the selected id from the slice according to resized coordinates
-        selected_id = self.supervoxel_id_slice[coordinates[1], coordinates[0]]
-
-        #Index values that contain the selected supervoxel ids in the real sized image
-        selected_idx = np.where(self.supervoxel_id == selected_id)
-
-        #Segmentation is updated with new labels
-        return self.segm[selected_idx[0], selected_idx[1], selected_idx[2]][0]
-
-    def _change_label_supervoxel(self, new_label, selected_idx):
-        """Changing the label of the supervoxel
-
-        cooordinates is a list of the ids of the selected voxel.
-        coordinates[0] - x coordinate, coordinate[1] - y coordinate, coordinate[2] - z coordinate
-        new label is the type of pixel 0 - background,
-        3 - edema, 2 - Non-active tumor and 1 - Active tumor
-        self.segms is the array with segmentations
-        self.supervoxel_ids is the the array with the supervoxels"""
-        #Segmentation is updated with new labels
-        self.segm[selected_idx[0], selected_idx[1], selected_idx[2]] = new_label
-        self.disp_im()
-
+        self.reset_slice_scroll()
 
     ##### allow to show segmentations, change axis and quit #########
 
@@ -380,7 +349,7 @@ class VisualVolumes(MyFrame):
             ind += 1
             self.cb1_var = IntVar()
             self.cb_1 = Checkbutton(_sub_sub_frame2,
-                                    text="Edema(Yellow)",
+                                    text="Edema (Yellow)",
                                     variable=self.cb1_var,
                                     command=lambda : self.change_segm(0))
             self.cb_1.grid(column=0,
@@ -389,7 +358,7 @@ class VisualVolumes(MyFrame):
             ind += 1
             self.cb2_var = IntVar()
             self.cb_2 = Checkbutton(_sub_sub_frame2,
-                                    text="Non-active tumor(Green)",
+                                    text="Non-active tumor (Green)",
                                     variable=self.cb2_var,
                                     command=lambda : self.change_segm(1))
             self.cb_2.grid(column=0,
@@ -398,7 +367,7 @@ class VisualVolumes(MyFrame):
             ind += 1
             self.cb3_var = IntVar()
             self.cb_3 = Checkbutton(_sub_sub_frame2,
-                                    text="Active tumor(Red)",
+                                    text="Active tumor (Red)",
                                     variable=self.cb3_var,
                                     command=lambda : self.change_segm(2))
             self.cb_3.grid(column=0,
@@ -455,7 +424,7 @@ class VisualVolumes(MyFrame):
             self.button_open_segm.grid(column=0, row=ind, sticky=['w', 'n', 'e'])
 
 
-    ########## image options ###########################
+    #################### Display images ###########################
 
     def disp_im(self):
         """use the size, slice and zoom to display the image"""
@@ -470,85 +439,39 @@ class VisualVolumes(MyFrame):
                                  axis=self._axis),
                     dtype='float')
 
-            temp_im = self.get_image_pil(pix)
+            temp_im, im_size = pil.get_image_pil(pix, 
+                                                 self.image_scale, 
+                                                 return_image_size=True)
+            self.image_size = im_size
             temp_im = temp_im.convert('RGB')
 
             if self.segm is not None:
-                if len(self.selected_idx_list) > 0:
-                    temp_im = self.add_segmentation_for_display(temp_im,
-                                                                self.segm_disp,
-                                                                slice_index)
-                else:
-                    temp_im = self.add_segmentation(temp_im,
-                                                    self.segm,
-                                                    slice_index)
-
+                temp_im = self.add_segmentation(temp_im, slice_index)
+                
             if self.show_supervoxels and type(self.supervoxel_border) is np.ndarray:
                 temp_im = self.add_supervoxels(temp_im, slice_index)
 
             # create the 2d view with or without the bounding box
             self._image_view[i] = ImageTk.PhotoImage(temp_im)
-
-            # set the view in the frame
-            # TODO: weird error 'image "..." doesn't exist'
             self._imagelabel[i]['image'] = self._image_view[i]
 
         # update slice label
         self._slice_label_number['text'] = str(int(self._slice_scroll.val))
 
-    ########## create images to be depicted #####
-
-    def get_image_pil(self, pix):
-        """get the ImagePIL format from a 2d numpy array"""
-
-        # normalize array between 0 and 255
-        pix = pix - pix.min()
-        max_int = float(pix.max())
-        if max_int == 0:
-            max_int = 0.00001
-        pix_normalized = pix * 255. / max_int
-        # reshape the array to fit the current image size
-        pix_ratio = pix.shape[1] / np.floor(pix.shape[0])
-        self._image_size = (int(self.image_scale * pix_ratio),
-                            self.image_scale)
-
-        temp_im = ImagePIL.fromarray(pix_normalized).resize(self._image_size, ImagePIL.NEAREST)
-
-        return temp_im
-
-    def add_segmentation(self,
-                         image,
-                         segm,
-                         slice_ind=None):
+    def add_segmentation(self, image, slice_ind=None):
+        """ Add a segmentation to the image (colors will be overlaid). """
 
         #Segmentation is separated into binary segmentations
         #Also, segm contains 3 binary segmentations
-        segm = utils.get_separate_labels(segm)
+        if len(self.selected_idx_list) > 0:
+            segm = utils.get_separate_labels_for_display(self.segm_disp)
+        else:
+            segm = utils.get_separate_labels(self.segm)
         r, g, b = image.convert('RGB').split()
         rgb = [r, g, b]
-        edema_yellow = (205, 190, 35)
-        non_active_green = (100, 165, 50)
-        active_red = (220, 50, 0)
 
         #Variable that contains selected colors
-        colors = [None, None, None]
-
-#        #Remove all if check box selected
-#        if hasattr(self, 'cb5_var') and self.cb5_var.get() == 1:
-#            self.cb1_var.set(0)
-#            self.cb2_var.set(0)
-#            self.cb3_var.set(0)
-#            self.cb4_var.set(0)
-
-#        #Add all if check box selected
-#        if hasattr(self, 'cb4_var') and self.cb4_var.get() == 1:
-#            self.cb1_var.set(1)
-#            self.cb2_var.set(1)
-#            self.cb3_var.set(1)
-#            self.cb5_var.set(0)
-#            #colors.insert(0, edema_yellow)
-#            #colors.insert(1, non_active_green)
-#            #colors.insert(2, active_red)
+        colors = [None for i in range(len(segm))]
 
         #Add edema if check box selected
         if hasattr(self, 'cb1_var') and self.cb1_var.get() == 1:
@@ -561,79 +484,12 @@ class VisualVolumes(MyFrame):
         #Add active tumor if check box selected
         if hasattr(self, 'cb3_var') and self.cb3_var.get() == 1:
             colors.insert(2, active_red)
-
-        #Do the painting with respect to colors variable
-        for i in range(3):
-            if colors[i] is None:
-                continue
-            pix = np.array(ms.get_slice(segm[i],
-                                        boundaries=self.boundaries,
-                                        visual_center=slice_ind,
-                                        axis=self._axis))
-            pix[pix > 0.5] = 1
-            pix = pix.astype('uint8')
-
-            if np.any(pix):
-                segm_im = self.get_image_pil(pix)
-
-                #Edema is yellow, non active tumor is green and active tumor is red
-                rgb = self._set_color_custom(rgb, segm_im, colors[i])
-
-        #Merge operation for all
-        segm_im = ImagePIL.merge("RGB", rgb)
-        return ImagePIL.blend(image, segm_im, self.alpha)
-
-    def add_segmentation_for_display(self,
-                         image,
-                         segm,
-                         slice_ind=None):
-
-        #Segmentation is separated into binary segmentations
-        #Also, segm contains 3 binary segmentations
-        segm = utils.get_separate_labels_for_display(segm)
-        r, g, b = image.convert('RGB').split()
-        rgb = [r, g, b]
-        edema_yellow = (205, 190, 35)
-        non_active_green = (100, 165, 50)
-        active_red = (220, 50, 0)
-        selected = (0, 0, 255)
-
-        #Variable that contains selected colors
-        colors = [None, None, None, None]
-
-#        #Remove all if check box selected
-#        if hasattr(self, 'cb5_var') and self.cb5_var.get() == 1:
-#            self.cb1_var.set(0)
-#            self.cb2_var.set(0)
-#            self.cb3_var.set(0)
-#            self.cb4_var.set(0)
-
-#        #Add all if check box selected
-#        if hasattr(self, 'cb4_var') and self.cb4_var.get() == 1:
-#            self.cb1_var.set(1)
-#            self.cb2_var.set(1)
-#            self.cb3_var.set(1)
-#            self.cb5_var.set(0)
-#            #colors.insert(0, edema_yellow)
-#            #colors.insert(1, non_active_green)
-#            #colors.insert(2, active_red)
-#            #colors.insert(3, selected)
         
-        #Add edema if check box selected
-        if hasattr(self, 'cb1_var') and self.cb1_var.get() == 1:
-            colors.insert(0, edema_yellow)
-
-        #Add non active tumor if check box selected
-        if hasattr(self, 'cb2_var') and self.cb2_var.get() == 1:
-            colors.insert(1, non_active_green)
-
-        #Add active tumor if check box selected
-        if hasattr(self, 'cb3_var') and self.cb3_var.get() == 1:
-            colors.insert(2, active_red)
-        colors.insert(3, selected)
+        if len(colors==4):
+            colors.insert(3, selected)
 
         #Do the painting with respect to colors variable
-        for i in range(4):
+        for i in range(len(segm)):
             if colors[i] is None:
                 continue
             pix = np.array(ms.get_slice(segm[i],
@@ -644,22 +500,17 @@ class VisualVolumes(MyFrame):
             pix = pix.astype('uint8')
 
             if np.any(pix):
-                segm_im = self.get_image_pil(pix)
-
-                #Edema is yellow, non active tumor is green and active tumor is red
-                rgb = self._set_color_custom(rgb, segm_im, colors[i])
+                color_region = pil.get_image_pil(pix, self.image_scale)
+                rgb = pil.set_color_custom(color_region, colors[i], rgb=rgb)
 
         #Merge operation for all
         segm_im = ImagePIL.merge("RGB", rgb)
         return ImagePIL.blend(image, segm_im, self.alpha)
     
-    def add_supervoxels(self,
-                        image,
-                        slice_ind=None):
-        """It adds the supervoxels on the segmented image by drawing their boundaries."""
+    def add_supervoxels(self, image, slice_ind=None):
+        """ Add supervoxels to the image (boundaries will be drawn)."""
 
         r, g, b = image.convert('RGB').split()
-
         pix = np.array(ms.get_slice(self.supervoxel_id,
                                     boundaries=self.boundaries,
                                     visual_center=slice_ind,
@@ -671,39 +522,42 @@ class VisualVolumes(MyFrame):
             pix = pix *50000
 
         #Get image with supervoxels that has borders calculated with contours
-        image_temp = self.get_image_pil(pix)\
-                         .convert("RGB")\
+        sup_im = pil.get_image_pil(pix, self.image_scale)\
+                        .convert("RGB")\
                          .filter(ImageFilter.CONTOUR)\
                          .filter(ImageFilter.EDGE_ENHANCE_MORE)\
                          .filter(ImageFilter.EDGE_ENHANCE_MORE)
 
-        r_border, g_border, b_border = image_temp.split()
-        r = self._set_color_empty(r, r_border)
-        g = self._set_color_empty(g, g_border)
-        b = self._set_color_empty(b, b_border)
+        r_border, g_border, b_border = sup_im.split()
+        r = pil.set_color_empty(r, r_border)
+        g = pil.set_color_empty(g, g_border)
+        b = pil.set_color_empty(b, b_border)
 
         #Merge operation for all colors
-        image_temp = ImagePIL.merge("RGB", (r, g, b))
-        return ImagePIL.blend(image_temp, image, 1- self.alpha)
+        sup_im = ImagePIL.merge("RGB", (r, g, b))
+        return ImagePIL.blend(image, sup_im, self.alpha)
 
+    #################### EVENTS: Change slice ######################
+        
+    def reset_slice_scroll(self):
 
-    def _set_color_empty(self, color, segm_im):
+        max_slice = self._get_max_slice()
+        min_slice = self._get_min_slice()
+        diff = max_slice - min_slice
+        new_value = int(min_slice + np.floor(diff / 2))
+        self._slice_scroll.set_value(new_value)
+        
+    def slice_up(self, *args):
+        """increase slice number"""
+        new_value = self._slice_scroll.val + 1
+        if new_value <= self._get_max_slice(in_boundaries=True):
+            self._slice_scroll.set_value(new_value)
 
-        new_color = np.minimum(np.array(color),
-                               np.array(segm_im)).astype('uint8')
-
-        return ImagePIL.fromarray(new_color,
-                                  mode='L')
-
-    def _set_color_custom(self, channels, segm_im, color):
-        for i in range(len(channels)):
-            channels[i] = ImagePIL.fromarray(np.where(np.array(segm_im) == 255,
-                                                      color[i],
-                                                      np.array(channels[i])),
-                                             mode='L')
-
-        return channels
-
+    def slice_down(self, *args):
+        """decrease slice number"""
+        new_value = self._slice_scroll.val - 1
+        if new_value >= self._get_min_slice(in_boundaries=True):
+            self._slice_scroll.set_value(new_value)
 
     def _get_max_slice(self, in_boundaries=True):
         """Gets the maximum slice of the numpy array."""
@@ -718,9 +572,155 @@ class VisualVolumes(MyFrame):
             return self.boundaries[self._axis][0]
         else:
             return 0
+        
+    def change_axis(self):
+        """It changes the axis of the image."""
+        self._axis = (self._axis + 1) % 3
+        self.reset_slice_scroll()
+        self.disp_im()
 
+    def mirror_image(self):
+        """It mirrors the image."""
+        for i in range(self.image_nb):
+            self.images[i] = np.flip(self.images[i], axis=self._axis+1)
+            self.images_original[i] = np.flip(self.images_original[i], axis=(self._axis + 1) % 3)
+        if self.segm is not None:
+            self.segm = np.flip(self.segm, axis=(self._axis + 1) % 3)
 
-    def _change_label_onclick(self, new_label, selected_idx_list):
+        if self.show_supervoxels and type(self.supervoxel_border) is np.ndarray:
+            self.supervoxel_id = np.flip(self.supervoxel_id, axis=(self._axis + 1) % 3)
+            self.boundaries = ms.get_boundaries_series(self.images)
+        self.disp_im()
+        
+    def goto_slice(self):
+        """moves to the desired slice"""
+
+        z = self._new_slice.get()
+        max_valid_z = self._get_max_slice(in_boundaries=True)
+        min_valid_z = self._get_min_slice(in_boundaries=True)
+        # if not an integer
+        try:
+            z = int(z)
+            # if out of range
+            if z < 0:
+                msg = 'Please select a positive slice index. ' +\
+                        'Lowest non-zero slice is shown.'
+                self._slice_scroll.set_value(min_valid_z)
+                self._new_slice.delete(0, END)
+            elif z < min_valid_z:
+                msg = 'Slice %d has only zeros. ' % z
+                msg += 'Lowest non-zero slice is shown.'
+                self._slice_scroll.set_value(min_valid_z)
+                self._new_slice.delete(0, END)
+            elif z > self._get_max_slice(in_boundaries=False):
+                msg = 'Slice %d exceeds the image dimension. ' % z
+                msg += 'Highest non-zero slice is shown.'
+                self._slice_scroll.set_value(max_valid_z)
+                self._new_slice.delete(0, END)
+            elif z > max_valid_z:
+                msg = 'Slice %d consists of zeros. ' % z
+                msg += 'Highest non-zero slice is shown.'
+                self._slice_scroll.set_value(max_valid_z)
+                self._new_slice.delete(0, END)
+            else:
+                self._slice_scroll.set_value(z)
+                self._new_slice.delete(0, END)
+        except ValueError as e:
+            print e
+            self._new_slice.delete(0, END)   
+            
+    ############### EVENTS : select and change #########################
+    
+    def click_image(self, event):
+        """ Select a supervoxel and color it in blue. 
+        Called when clicked on an image. """
+        
+        #the size of the image:
+        #0 element of image corresponds to 1 element
+        #of supervoxel_id_slice and vice versa
+
+        #converting the coordinates on the clicked image into the 
+        #coordinates of the voxel
+        #Since the displayed pixels range from 1 to lenght+1,
+        #need to subtract 1 from the coordinates
+        x_coordinate_supervoxel = (event.x - 1) *\
+                                  len(self.supervoxel_id_slice[0]) /\
+                                  self.image_size[0]
+
+        y_coordinate_supervoxel = (event.y - 1) *\
+                                  len(self.supervoxel_id_slice) /\
+                                  self.image_size[1]
+
+        z_coordinate_supervoxel = int(self._slice_scroll.val)
+
+        coordinates = [x_coordinate_supervoxel,
+                       y_coordinate_supervoxel,
+                       z_coordinate_supervoxel]
+        
+        selected_id = self.supervoxel_id_slice[coordinates[1], coordinates[0]]
+        selected_idx = np.where(self.supervoxel_id == selected_id)
+        
+        if not self._check_idx_selected(selected_idx):
+            self.selected_idx_list.append(selected_idx)
+        
+        self.segm_disp = self.segm.copy()
+        for selected_idx in (self.selected_idx_list):    
+            #Segmentation is updated with new labels
+            #Old label is saved for undo and redo actions
+            self.segm_disp[selected_idx[0], selected_idx[1], selected_idx[2]] = 4
+            
+        self.disp_im()
+        
+    def _check_idx_selected(self, selected_idx):
+        """ If the given coordinates of te supervoxel are already in the
+        list, remove them, otherwise, add them. """
+        
+        for i in range(len(self.selected_idx_list)):
+            selected_idx_from_list = self.selected_idx_list[i]
+            
+            if all([np.array_equal(selected_idx_from_list[i], 
+                                   selected_idx[i]) \
+                    for i in range(3)]):
+                del self.selected_idx_list[i]
+                return True
+            
+        return False        
+            
+    def label_change(self, event):
+        """When clicking right on a supervoxel, give a drop-down list
+        with labels to change to."""
+
+        # Adding the selection menu with radio  buttons.
+        self.menu = Menu(self, tearoff=0)
+        self.menu\
+            .add_radiobutton(label="Background",
+                             value=0,
+                             command=lambda\
+                             arg0=0,
+                             arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
+
+        self.menu\
+            .add_radiobutton(label="Edema",
+                             value=3,
+                             command=lambda\
+                             arg0=3,
+                             arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
+
+        self.menu\
+            .add_radiobutton(label="Non-active tumor",
+                             value=2,
+                             command=lambda\
+                             arg0=2,
+                             arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
+        self.menu\
+            .add_radiobutton(label="Active tumor",
+                             value=1,
+                             command=lambda\
+                             arg0=1,
+                             arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
+        self.menu.tk_popup(event.x_root, event.y_root)
+
+    def change_label_onclick(self, new_label, selected_idx_list):
         """Changing the label of the supervoxel
 
         cooordinates is a list of the ids of the selected voxel.
@@ -763,160 +763,20 @@ class VisualVolumes(MyFrame):
             
         self.selected_idx_list = []
         self.disp_im()
-        
-    def check_idx_selected(self, selected_idx):
-        for i in range(len(self.selected_idx_list)):
-            selected_idx_from_list = self.selected_idx_list[i]
-            
-            if(np.array_equal(selected_idx_from_list[0], selected_idx[0]) and np.array_equal(selected_idx_from_list[1], selected_idx[1]) and np.array_equal(selected_idx_from_list[2], selected_idx[2])):
-                del self.selected_idx_list[i]
-                return True
-            
-        return False
-        
-    ############### EVENTS - START #################################
-    def _click_image(self, event):
-        
-        #the size of the image:
-        #0 element of image corresponds to 1 element
-        #of supervoxel_id_slice and vice versa
 
-        #converting the coordinates on the clicked image into the coordinates of the voxel
-        #Since the displayed pixels range from 1 to lenght+1,
-        #need to subtract 1 from the coordinates
-        x_coordinate_supervoxel = (event.x - 1) *\
-                                  len(self.supervoxel_id_slice[0]) /\
-                                  self._image_size[0]
-
-        y_coordinate_supervoxel = (event.y - 1) *\
-                                  len(self.supervoxel_id_slice) /\
-                                  self._image_size[1]
-
-        z_coordinate_supervoxel = int(self._slice_scroll.val)
-
-        coordinates = [x_coordinate_supervoxel,
-                       y_coordinate_supervoxel,
-                       z_coordinate_supervoxel]
-        
-        selected_id = self.supervoxel_id_slice[coordinates[1], coordinates[0]]
-        selected_idx = np.where(self.supervoxel_id == selected_id)
-        
-        if not self.check_idx_selected(selected_idx):
-            self.selected_idx_list.append(selected_idx)
-        
-        self.segm_disp = self.segm.copy()
-        for selected_idx in (self.selected_idx_list):    
-            #Segmentation is updated with new labels
-            #Old label is saved for undo and redo actions
-            self.segm_disp[selected_idx[0], selected_idx[1], selected_idx[2]] = 4
-            
-        self.disp_im()
-            
-    def _label_change(self, event):
-        """Selecting the supervoxel."""
-
-        # Adding the selection menu with radio  buttons.
-        self.menu = Menu(self, tearoff=0)
-        #self.menu_rb = IntVar()
-        #self.menu_rb.set(self._get_label_supervoxel(coordinates))
-
-        self.menu\
-            .add_radiobutton(label="Background",
-                             value=0,
-                             command=lambda\
-                             arg0=0,
-                             arg1=self.selected_idx_list: self._change_label_onclick(arg0, arg1))
-
-        self.menu\
-            .add_radiobutton(label="Edema",
-                             value=3,
-                             command=lambda\
-                             arg0=3,
-                             arg1=self.selected_idx_list: self._change_label_onclick(arg0, arg1))
-
-        self.menu\
-            .add_radiobutton(label="Non-active tumor",
-                             value=2,
-                             command=lambda\
-                             arg0=2,
-                             arg1=self.selected_idx_list: self._change_label_onclick(arg0, arg1))
-        self.menu\
-            .add_radiobutton(label="Active tumor",
-                             value=1,
-                             command=lambda\
-                             arg0=1,
-                             arg1=self.selected_idx_list: self._change_label_onclick(arg0, arg1))
-        self.menu.tk_popup(event.x_root, event.y_root)
-
-    def _slice_up(self, *args):
-        """increase slice number"""
-        new_value = self._slice_scroll.val + 1
-        if new_value <= self._get_max_slice(in_boundaries=True):
-            self._slice_scroll.set_value(new_value)
-
-    def _slice_down(self, *args):
-        """decrease slice number"""
-        new_value = self._slice_scroll.val - 1
-        if new_value >= self._get_min_slice(in_boundaries=True):
-            self._slice_scroll.set_value(new_value)
-
-    def undo_action(self, *args):
-        """Executing undo action on CTRL-Z."""
-
-        #If respective stack is not empty
-        #Go to the last state of segmentation
-        #and update the redo_stack
-        if len(self.undo_stack) > 0:
-            action = self.undo_stack.pop()
-            self.redo_stack.append(action)
-            selected_idx, old_label, new_label = action
-            self._change_label_supervoxel(old_label, selected_idx)
-            self.disp_im()
-
-    def redo_action(self, *args):
-        """Executing redo action on CTRL-Y"""
-
-        #If respective stack is not empty
-        #Go to the last state of segmentation
-        #and update the undo_stack
-        if len(self.redo_stack) > 0:
-            action = self.redo_stack.pop()
-            self.undo_stack.append(action)
-            selected_idx, old_label, new_label = action
-            self._change_label_supervoxel(new_label, selected_idx)
-            self.disp_im()
-
-
-    def _change_histogram(self, event):
-        slider = event.widget
-        i = self.histogram_sliders.index(slider)
-
-        original_image = self.images_original[i]
-        image = self.images[i]
-        lower = slider.getLower()
-        upper = slider.getUpper()
-        lower = np.float(lower)
-        upper = np.float(upper)
-        np.clip(original_image, lower, upper, image)
-
-        np.subtract(image, lower, out=image, casting='unsafe')
-        self.disp_im()
-
-    def _change_intensity(self, event):
-        """ It changes the intesity of the images based on the hist slider."""
+    def change_intensity(self, event):
+        """ Change the intesity of the images based on the hist slider."""
         slider = event.widget
         i = self.histogram_sliders.index(slider)
 
         # find the image index based on the slider
-        image_i = 1
+        image_i = 3
         if i == 0 or i == 1:
             image_i = 0
         elif i == 2 or i == 3:
             image_i = 1
         elif i == 4 or i == 5:
             image_i = 2
-        else:
-            image_i = 3
 
         original_image = self.images_original[image_i]
         image = self.images[image_i]
@@ -937,30 +797,10 @@ class VisualVolumes(MyFrame):
         np.subtract(image, lower, out=image, casting='unsafe')
         self.disp_im()
 
-    def change_axis(self):
-        """It changes the axis of the image."""
-        self._axis = (self._axis + 1) % 3
-        self.update_slice_scroll()
-        self.disp_im()
-
-    def mirror_image(self):
-        """It mirrors the image."""
-        for i in range(self.image_nb):
-            self.images[i] = np.flip(self.images[i], axis=self._axis+1)
-            self.images_original[i] = np.flip(self.images_original[i], axis=(self._axis + 1) % 3)
-        if self.segm is not None:
-            self.segm = np.flip(self.segm, axis=(self._axis + 1) % 3)
-
-        if self.show_supervoxels and type(self.supervoxel_border) is np.ndarray:
-            self.supervoxel_id = np.flip(self.supervoxel_id, axis=(self._axis + 1) % 3)
-            self.boundaries = ms.get_boundaries_series(self.images)
-        self.disp_im()
-
     def change_segm(self, button_ind):
-        """It shows or hides the segmentation from the images."""
+        """ Show or hide the segmentation from the images."""
 
-	#var = [self.cb1_var,self.cb2_var,self.cb3_var,self.cb4_var,self.cb5_var]
-	if button_ind <= 2:
+        if button_ind <= 2:
             if self.cb1_var.get() + self.cb2_var.get() + self.cb3_var.get() < 3:
                 self.cb4_var.set(0)
             else:
@@ -970,32 +810,74 @@ class VisualVolumes(MyFrame):
             else:
                 self.cb5_var.set(1)
 
-	if button_ind == 3:
-	    self.cb1_var.set(1)
-	    self.cb2_var.set(1)
-	    self.cb3_var.set(1)
-	    self.cb4_var.set(1)
-	    self.cb5_var.set(0)
-	if button_ind == 4:
-	    self.cb1_var.set(0)
-	    self.cb2_var.set(0)
-	    self.cb3_var.set(0)
-	    self.cb4_var.set(0)
-	    self.cb5_var.set(1)
+        if button_ind == 3:
+            self.cb1_var.set(1)
+            self.cb2_var.set(1)
+            self.cb3_var.set(1)
+            self.cb4_var.set(1)
+            self.cb5_var.set(0)
+        if button_ind == 4:
+            self.cb1_var.set(0)
+            self.cb2_var.set(0)
+            self.cb3_var.set(0)
+            self.cb4_var.set(0)
+            self.cb5_var.set(1)
         self.disp_im()
 
     def change_supervoxels(self):
-        """It toggles between showing supervoxels or not."""
+        """ Toggle between showing supervoxels or not."""
         self.show_supervoxels = not self.show_supervoxels
         self.disp_im()
 
     def set_alpha(self, *args):
-        """It changes the opacity level."""
+        """ Change the opacity level."""
         self.alpha = self.alpha_scale.get()
         self.disp_im()
+        
+
+    def undo_action(self, *args):
+        """ Execute undo action on CTRL-Z."""
+
+        #If respective stack is not empty
+        #Go to the last state of segmentation
+        #and update the redo_stack
+        if len(self.undo_stack) > 0:
+            action = self.undo_stack.pop()
+            self.redo_stack.append(action)
+            selected_idx, old_label, new_label = action
+            self._change_label_supervoxel(old_label, selected_idx)
+            self.disp_im()
+
+    def redo_action(self, *args):
+        """Execute redo action on CTRL-Y"""
+
+        #If respective stack is not empty
+        #Go to the last state of segmentation
+        #and update the undo_stack
+        if len(self.redo_stack) > 0:
+            action = self.redo_stack.pop()
+            self.undo_stack.append(action)
+            selected_idx, old_label, new_label = action
+            self._change_label_supervoxel(new_label, selected_idx)
+            self.disp_im()    
+            
+    def _change_label_supervoxel(self, new_label, selected_idx):
+        """ Change the label of the supervoxel
+
+        cooordinates is a list of the ids of the selected voxel.
+        coordinates[0] - x coordinate, coordinate[1] - y coordinate, coordinate[2] - z coordinate
+        new label is the type of pixel 0 - background,
+        3 - edema, 2 - Non-active tumor and 1 - Active tumor
+        self.segms is the array with segmentations
+        self.supervoxel_ids is the the array with the supervoxels"""
+        #Segmentation is updated with new labels
+        self.segm[selected_idx[0], selected_idx[1], selected_idx[2]] = new_label
+        self.disp_im()   
+        
+    #################### Save or load a segmentation ###################        
 
     def save_segm(self):
-        """It saves the current custom segmentation into a file."""
+        """ Save the current custom segmentation into a file."""
         kwargs = {}
         if self.segm_path is not None:
             dirname, basename = os.path.split(self.segm_path)
@@ -1010,14 +892,14 @@ class VisualVolumes(MyFrame):
                                               '.nii.gz'))],
                                  **kwargs)
 
-	#TODO: change here self.segm_path
+        #TODO: change here self.segm_path
         if self.segm_path is not None:
             old_segm = oitk.get_itk_image(self.segm_path)
         image = oitk.make_itk_image(self.segm, old_segm)
         oitk.write_itk_image(image, path)
 
     def open_segm(self):
-        """It opens a new custom segmentation from a file."""
+        """ Open a new custom segmentation from a file."""
         kwargs = {}
         kwargs['initialdir'] = os.environ.get('HOME')
         if self.segm_path is not None:
@@ -1037,42 +919,5 @@ class VisualVolumes(MyFrame):
             self.segm_path = segm_path
             self.segm = oitk.get_itk_array(self.segm_path)
             self.disp_im()
-
-    def _goto_slice(self):
-        """moves to the desired slice"""
-
-        z = self._new_slice.get()
-        max_valid_z = self._get_max_slice(in_boundaries=True)
-        min_valid_z = self._get_min_slice(in_boundaries=True)
-        # if not an integer
-        try:
-            z = int(z)
-            # if out of range
-            if z < 0:
-                msg = 'Please select a positive slice index. ' +\
-                        'Lowest non-zero slice is shown.'
-                self._slice_scroll.set_value(min_valid_z)
-                self._new_slice.delete(0, END)
-            elif z < min_valid_z:
-                msg = 'Slice %d has only zeros. ' % z
-                msg += 'Lowest non-zero slice is shown.'
-                self._slice_scroll.set_value(min_valid_z)
-                self._new_slice.delete(0, END)
-            elif z > self._get_max_slice(in_boundaries=False):
-                msg = 'Slice %d exceeds the image dimension. ' % z
-                msg += 'Highest non-zero slice is shown.'
-                self._slice_scroll.set_value(max_valid_z)
-                self._new_slice.delete(0, END)
-            elif z > max_valid_z:
-                msg = 'Slice %d consists of zeros. ' % z
-                msg += 'Highest non-zero slice is shown.'
-                self._slice_scroll.set_value(max_valid_z)
-                self._new_slice.delete(0, END)
-            else:
-                self._slice_scroll.set_value(z)
-                self._new_slice.delete(0, END)
-        except ValueError as e:
-            print e
-            self._new_slice.delete(0, END)
 
     ################# EVENTS - END #####################################

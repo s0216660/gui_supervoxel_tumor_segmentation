@@ -5,7 +5,7 @@ Created on Jan 25, 2016
 '''
 
 import numpy as np
-from segmentation.utilities import own_itk as oitk
+import own_itk as oitk
 
 def get_slice(im_array,
               boundaries=None,
