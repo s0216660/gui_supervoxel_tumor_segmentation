@@ -471,22 +471,22 @@ class VisualVolumes(MyFrame):
         rgb = [r, g, b]
 
         #Variable that contains selected colors
-        colors = [None for i in range(len(segm))]
+        colors = [None for _ in range(len(segm))]
 
         #Add edema if check box selected
         if hasattr(self, 'cb1_var') and self.cb1_var.get() == 1:
-            colors.insert(0, edema_yellow)
+            colors[0] = edema_yellow
 
         #Add non active tumor if check box selected
         if hasattr(self, 'cb2_var') and self.cb2_var.get() == 1:
-            colors.insert(1, non_active_green)
+            colors[1] = non_active_green
 
         #Add active tumor if check box selected
         if hasattr(self, 'cb3_var') and self.cb3_var.get() == 1:
-            colors.insert(2, active_red)
+            colors[2] = active_red
         
-        if len(colors==4):
-            colors.insert(3, selected)
+        if len(colors)==4:
+            colors[3] = selected
 
         #Do the painting with respect to colors variable
         for i in range(len(segm)):
@@ -582,7 +582,7 @@ class VisualVolumes(MyFrame):
     def mirror_image(self):
         """It mirrors the image."""
         for i in range(self.image_nb):
-            self.images[i] = np.flip(self.images[i], axis=self._axis+1)
+            self.images[i] = np.flip(self.images[i], axis=(self._axis + 1) % 3)
             self.images_original[i] = np.flip(self.images_original[i], axis=(self._axis + 1) % 3)
         if self.segm is not None:
             self.segm = np.flip(self.segm, axis=(self._axis + 1) % 3)
@@ -592,7 +592,7 @@ class VisualVolumes(MyFrame):
             self.boundaries = ms.get_boundaries_series(self.images)
         self.disp_im()
         
-    def goto_slice(self):
+    def goto_slice(self, *args):
         """moves to the desired slice"""
 
         z = self._new_slice.get()
@@ -662,6 +662,9 @@ class VisualVolumes(MyFrame):
         
         if not self._check_idx_selected(selected_idx):
             self.selected_idx_list.append(selected_idx)
+            print 'Selecting supervoxel'
+        else:
+            print 'Unselecting supervoxel'
         
         self.segm_disp = self.segm.copy()
         for selected_idx in (self.selected_idx_list):    
@@ -678,9 +681,9 @@ class VisualVolumes(MyFrame):
         for i in range(len(self.selected_idx_list)):
             selected_idx_from_list = self.selected_idx_list[i]
             
-            if all([np.array_equal(selected_idx_from_list[i], 
-                                   selected_idx[i]) \
-                    for i in range(3)]):
+            if all([np.array_equal(selected_idx_from_list[j], 
+                                   selected_idx[j]) \
+                    for j in range(3)]):
                 del self.selected_idx_list[i]
                 return True
             

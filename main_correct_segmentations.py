@@ -40,7 +40,7 @@ MODALITY_PREFIXES = ['t1','t1c','t2','flair'] # for the modality paths
 
 #########################################################################
 
-class SelectPaths(object):
+class SelectPaths(MyFrame):
 
     def __init__(self, topframe=None):
 
@@ -54,7 +54,6 @@ class SelectPaths(object):
         self.patients = []
         self.set_title('Brain segmentation GUI')
         self.add_ui_components()
-        self.import_existing_patients()
 
     def add_ui_components(self):
 
@@ -269,9 +268,9 @@ class SelectPaths(object):
         # We make a list of patients with only ids for the listbox.
         
         if patients is None:
-            patients_validation = os.listdir(self.patient_folder_path)      
+            patients = os.listdir(self.patient_folder_path)      
         self.patients = []
-        for patient in patients_validation:       
+        for patient in patients:       
             if not patient.startswith('processed_'):
                 self.patients.append(patient)
         self.patients.sort()

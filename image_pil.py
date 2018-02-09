@@ -21,10 +21,10 @@ def set_color_custom(segm_im, color, rgb=None):
     channels = []
     for i in range(len(color)):
         if rgb is None:
-            pix = np.where(np.array(segm_im) == 255, color[i], np.array(rgb[i]))
-        else:
             pix = np.where(np.array(segm_im) == 255, color[i], 0)
-        channels[i] = ImagePIL.fromarray(pix, mode='L')
+        else:
+            pix = np.where(np.array(segm_im) == 255, color[i], np.array(rgb[i]))
+        channels.append(ImagePIL.fromarray(pix, mode='L'))
 
     return channels
 
