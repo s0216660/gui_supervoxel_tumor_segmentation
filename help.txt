@@ -1,0 +1,101 @@
+Help document - Brain Segmentation GUI
+
+This is a short document explaining the main functions of the software. The software is composed of three screens: Brain Segmentation GUI screen, Visualise Volumes screen and Help screen.
+
+
+	1) Brain Segmentation GUI screen. This is the the first screen that is shown when the user starts the software. It is responsible for importing the data and executing the segmentation pipeline. It is composed of the following elements:
+ 
+		- Modality Paths - This is the option where the user should enter the path of the folder that contains folders of patients. Each patient must have 4 modalities inside its folder('T1','T1c','T2','FLAIR'). The user is however free to choose how he names the patient folders. The only requirement is that the names of the patient folders should be unique(no two folders can have the same name).  In the following I present you two examples of file hierarchies. The only options until this moment is to import only NIfTI and DICOM files.
+
+			a) Example hierarchy with NIfTI files of three patients. Please note that every patient must have the 'T1.nii', 'T1c.nii', 'T2.nii' and 'FLAIR.nii' files:
+	
+		/patients
+			/patient1
+				T1.ni
+				T1c.nii
+				T2.nii
+				FLAIR.nii
+			/patient2
+				T1.nii
+				T1c.nii
+				T2.nii
+				FLAIR.nii
+			/patient3
+				T1.nii
+				T1c.nii
+				T2.nii
+				FLAIR.nii
+
+			b) Example hierarchy with DICOM files of two patients. Please note that every patient must have the 'T1', 'T1c', 'T2' and 'FLAIR' folders with the DICOM files inside them:
+
+		/patients
+			/patient1
+				/T1
+					0001
+				/T1c
+					0001
+					0002
+				/T2
+					0001
+					0002
+					0003
+				/FLAIR
+					0001
+					0002
+					0003
+			/patient2
+				/T1
+                                        0001
+					0002
+					...
+					0020
+				/T1c
+					0001
+					...
+					0050
+				/T2
+					0001
+				/FLAIR
+					0001
+					0002
+		
+		- Segmentation path offers the possibility of uploading a custom segmentation file changed in the software for the specific patient. This path is optional.
+
+		- "Preprocess" button -  This is the first step of the pipeline. The preprocessing includes: registering the modalities, stripping the skull, and registering them again to the Brats Space.
+
+		- "Segment" button - This is the second step of the pipeline. It segments the tumor based on three categories. The three substeps are: 1. Preprocessing the
+
+		- "Visualise" button - This button opens a new screen for a selected patient.
+
+		- "Help" button - This button opens a new window with documentation and instructions on how to use the software. 
+
+		- Status Console - This console displays messages regarding the current step in the process and is aimed to guide the user through the software.
+
+		- Patient list - This is a list containing the patients. The user can select one or more patients. After the patient is selected, the user can Preprocess, Segment or Visualise by left-clicking the coresponding button.
+
+
+	2) Visualise Volumes screen - This screen is responsible for displaying the modalities and manipulating with the supervoxels. It is composed of the following elements:
+
+		- Change axis - This button is responsible for changing the axis of the MRI modalities. 
+		- Mirror image - This button is responsible for mirroring the images with the horizontal plane used as a mirroring surface.
+
+		- Slices slider - This slider on the bottom of the page is responsible of showing different slices of the brain images. The go to slice text field enables the user to jump to a desired slice.
+		- Contrast sliders - Bellow every image there are two sliders. They are responsible for changing the contrast of the picture over them in order to display some parts of the brain more clearly. Everything that is left of the left slider is black, everything that is right of the right slider is displayed white and everything in between is distributed between the other values.
+
+	***The following elements and actions are only for preprocessed and segmented images.***
+
+		- Show/Hide supervoxels - This button responsible for showing/hiding the supervoxels.
+
+		- Checkboxes responsible for displaying a specific tumor segmentation: Edema, Active tumor, Necroting tumor or all.
+
+		- Save segmentation - This button is responsible for saving custom created segmentation.
+
+		- With right click of a button on some of the images gives an option to change the segmentation of the super voxel. The possible values are: Background, Edema, Active tumor or necrotic tumor.
+
+		- The Control+Z command undos the last action.
+
+		- The opacity slider changes the opacity of the supervoxel borders and the tumor segmentations.
+
+		
+	3) Help screen - This screen is responsible for documentation and instructions on how to use the software. It is activated by pressing the Help button on the Brain Segmentation GUI screen.
+
