@@ -24,19 +24,17 @@ from my_frame import MyFrame
 import visualise_volumes as vv
 import help_window
 
-import own_itk as oitk
-
 #########################################################################
 
 # Define initial path to load data from
-DATA_PATH = '/home/esther/Documents/Data/BRATS/validation_slic_init/'
+DATA_PATH = '/home/alberts/Documents/Data/BRATS/2016_/separated_for_gui'
 if not os.path.exists(DATA_PATH):
     DATA_PATH = os.environ.get('HOME')
 
 # Define basenames (without extension) that allow to find the correct paths
-SEGM_PREFIX = 'hard_slic_rf' # for the segmentation path
-SUPERVOXEL_PREFIX = 'slic_supervoxels' # for the supervoxel path
-MODALITY_PREFIXES = ['t1','t1c','t2','flair'] # for the modality paths
+SEGM_PREFIX = 'gt' # for the segmentation path
+SUPERVOXEL_PREFIX = 'supervoxels' # for the supervoxel path
+MODALITY_PREFIXES = ['t1','t1c','t2','fla'] # for the modality paths
 
 #########################################################################
 
@@ -209,52 +207,64 @@ class SelectPaths(MyFrame):
             patients_validation = os.listdir(self.patient_folder_path)           
 
             # Checking if the patient has the right modalities and importing the patient.
-            for patient in patients_validation:
+            for i, patient in enumerate(patients_validation):
 
                 # Checking if the patient was already processed.
                 if patient.startswith('processed_') or os.path.exists(os.path.join(self.patient_folder_path, 'processed_'+patient)):
                     print("The files of the patient "+patient+" are already copied")
                     continue
 
-                # Creating a processed patient folder.
-                os.mkdir(os.path.join(self.patient_folder_path, 'processed_'+patient))
-
                 # If everything is fine, then it continues to makign folders and copying files
                 # Copying the files into the new folder.
-                self._convert_and_copy_files(patient)
+                valid = self._convert_and_copy_files(patient)
+                if not valid:
+                    patients_validation[i] = None
 
             # We make a list of patients with only ids for the listbox.
-            self.list_existing_patients(patients_validation)
+            valid_patients = [p for p in patients_validation if p is not None]
+            self.list_existing_patients(valid_patients)
 
     def _convert_and_copy_files(self, patient):
+        """ Check if all valid files exist for this patient and return
+        True if so. """
 
         # Getting the list of modalities for every patient.
         patient_path = os.path.join(self.patient_folder_path, patient)
         modalities = os.listdir(patient_path)
 
         # Look for paths
-        for prefix in [SEGM_PREFIX, SUPERVOXEL_PREFIX] + [MODALITY_PREFIXES]:
-            
+        valid_paths = {}
+        prefices = [SEGM_PREFIX, SUPERVOXEL_PREFIX] + MODALITY_PREFIXES
+        for prefix in prefices:
             candidates = [modality \
                           for modality in modalities \
                           if modality.startswith(prefix+'.')]
             if len(candidates) != 1:
                 err = '%s file not identified. Look for ambiguities in %s.' \
                         % (prefix, patient_path)
-                raise RuntimeError(err)
+                print (err)
+                return False
             modality = candidates[0]
             
             if not any([modality.endswith(ext) 
                         for ext in ['.mha', '.nii', '.nii.gz']]):
-                err = "Image format not recognized: %s" % modality
-                raise RuntimeError(err)
+                err = "Image format not recognized: %s. In %s" \
+                            % (modality, patient_path)
+                print (err)
+                return False
             
+            valid_paths[prefix] = modality
+            
+        # Creating a processed patient folder.
+        os.mkdir(os.path.join(self.patient_folder_path, 'processed_'+patient))
+        for prefix, basename in valid_paths.iteritems(): 
             shutil.copyfile(os.path.join(self.patient_folder_path,
                                          patient,
-                                         modality),
+                                         basename),
                             os.path.join(self.patient_folder_path,
                                          'processed_'+patient,
                                          prefix+'_'+patient+'.nii.gz'))
+        return True
             
     def open_help(self):
         

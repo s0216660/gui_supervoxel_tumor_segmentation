@@ -38,9 +38,12 @@ import supervoxel_operations as utils
 
 ######################################################################
 
-edema_yellow = (205, 190, 35)
-non_active_green = (100, 165, 50)
-active_red = (220, 50, 0)
+labels = ['Enhanced','Non-active tumor','Edema']
+yellow = (205, 190, 35)
+green = (100, 165, 50)
+red = (220, 50, 0)
+label_colors = [red, green, yellow]
+label_colors_d = ['red','green','yellow']
 selected = (0, 0, 255)
 
 ######################################################################
@@ -265,7 +268,7 @@ class VisualVolumes(MyFrame):
         this_new_slice.bind('<KP_Enter>', self.goto_slice)
         this_new_slice.grid(column=3, row=0, sticky=['w', 'e'])
 
-        self.image_scale = (self.screen_width - 200) / 8
+        self.image_scale = (self.screen_width - 200) / 4
 
         # Allow to scroll through the slices
         self._slice_scroll = lsb.LinkedScrollBar(master=slice_frame,
@@ -349,7 +352,7 @@ class VisualVolumes(MyFrame):
             ind += 1
             self.cb1_var = IntVar()
             self.cb_1 = Checkbutton(_sub_sub_frame2,
-                                    text="Edema (Yellow)",
+                                    text='%s (%s)' % (labels[0], label_colors_d[0]),
                                     variable=self.cb1_var,
                                     command=lambda : self.change_segm(0))
             self.cb_1.grid(column=0,
@@ -358,7 +361,7 @@ class VisualVolumes(MyFrame):
             ind += 1
             self.cb2_var = IntVar()
             self.cb_2 = Checkbutton(_sub_sub_frame2,
-                                    text="Non-active tumor (Green)",
+                                    text='%s (%s)' % (labels[1], label_colors_d[1]),
                                     variable=self.cb2_var,
                                     command=lambda : self.change_segm(1))
             self.cb_2.grid(column=0,
@@ -367,7 +370,7 @@ class VisualVolumes(MyFrame):
             ind += 1
             self.cb3_var = IntVar()
             self.cb_3 = Checkbutton(_sub_sub_frame2,
-                                    text="Active tumor (Red)",
+                                    text='%s (%s)' % (labels[2], label_colors_d[2]),
                                     variable=self.cb3_var,
                                     command=lambda : self.change_segm(2))
             self.cb_3.grid(column=0,
@@ -475,15 +478,15 @@ class VisualVolumes(MyFrame):
 
         #Add edema if check box selected
         if hasattr(self, 'cb1_var') and self.cb1_var.get() == 1:
-            colors[0] = edema_yellow
+            colors[0] = label_colors[0]
 
         #Add non active tumor if check box selected
         if hasattr(self, 'cb2_var') and self.cb2_var.get() == 1:
-            colors[1] = non_active_green
+            colors[1] = label_colors[1]
 
         #Add active tumor if check box selected
         if hasattr(self, 'cb3_var') and self.cb3_var.get() == 1:
-            colors[2] = active_red
+            colors[2] = label_colors[2]
         
         if len(colors)==4:
             colors[3] = selected
@@ -660,11 +663,20 @@ class VisualVolumes(MyFrame):
         selected_id = self.supervoxel_id_slice[coordinates[1], coordinates[0]]
         selected_idx = np.where(self.supervoxel_id == selected_id)
         
+        self._select_supervoxel(selected_idx)
+        
+    def _select_supervoxel(self, selected_idx, add_to_undo=True):
+        """ Depending whether this supervoxel is already selected, mark
+        or unmark the supervoxel. """
+        
         if not self._check_idx_selected(selected_idx):
             self.selected_idx_list.append(selected_idx)
             print 'Selecting supervoxel'
         else:
             print 'Unselecting supervoxel'
+        if add_to_undo:
+            action = selected_idx, None, None
+            self.undo_stack.append(action)
         
         self.segm_disp = self.segm.copy()
         for selected_idx in (self.selected_idx_list):    
@@ -703,20 +715,20 @@ class VisualVolumes(MyFrame):
                              arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
 
         self.menu\
-            .add_radiobutton(label="Edema",
+            .add_radiobutton(label=labels[0],
                              value=3,
                              command=lambda\
                              arg0=3,
                              arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
 
         self.menu\
-            .add_radiobutton(label="Non-active tumor",
+            .add_radiobutton(label=labels[1],
                              value=2,
                              command=lambda\
                              arg0=2,
                              arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
         self.menu\
-            .add_radiobutton(label="Active tumor",
+            .add_radiobutton(label=labels[2],
                              value=1,
                              command=lambda\
                              arg0=1,
@@ -836,7 +848,6 @@ class VisualVolumes(MyFrame):
         """ Change the opacity level."""
         self.alpha = self.alpha_scale.get()
         self.disp_im()
-        
 
     def undo_action(self, *args):
         """ Execute undo action on CTRL-Z."""
@@ -844,11 +855,15 @@ class VisualVolumes(MyFrame):
         #If respective stack is not empty
         #Go to the last state of segmentation
         #and update the redo_stack
+        print 'undo!'
         if len(self.undo_stack) > 0:
             action = self.undo_stack.pop()
             self.redo_stack.append(action)
-            selected_idx, old_label, new_label = action
-            self._change_label_supervoxel(old_label, selected_idx)
+            selected_idx, old_label, _ = action
+            if old_label is not None:
+                self._change_label_supervoxel(old_label, selected_idx)
+            else:
+                self._select_supervoxel(selected_idx, add_to_undo=False)
             self.disp_im()
 
     def redo_action(self, *args):
@@ -857,11 +872,15 @@ class VisualVolumes(MyFrame):
         #If respective stack is not empty
         #Go to the last state of segmentation
         #and update the undo_stack
+        print 'redo!'
         if len(self.redo_stack) > 0:
             action = self.redo_stack.pop()
             self.undo_stack.append(action)
-            selected_idx, old_label, new_label = action
-            self._change_label_supervoxel(new_label, selected_idx)
+            selected_idx, _, new_label = action
+            if new_label is not None:
+                self._change_label_supervoxel(new_label, selected_idx)
+            else:
+                self._select_supervoxel(selected_idx, add_to_undo=False)
             self.disp_im()    
             
     def _change_label_supervoxel(self, new_label, selected_idx):
