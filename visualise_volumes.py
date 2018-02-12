@@ -99,10 +99,11 @@ class VisualVolumes(MyFrame):
         self.undo_stack = []
         self.redo_stack = []
         self.image_nb = len(image_paths)
-        self.selected_idx_list = []
+        self.selected_id_list = []
         #Keybindings for undo and redo actions
         self.bind('<Control-z>', self.undo_action)
         self.bind('<Control-y>', self.redo_action)
+#         self.bind('<Control-a>', self.all_image)        
         self.focus_set()
 
     def _set_images(self, segm_path, image_paths, supervoxel_id_path):
@@ -237,6 +238,7 @@ class VisualVolumes(MyFrame):
             self._imagelabel[i].bind("<Button-3>", self.label_change)
             self._imagelabel[i].bind("<Button 4>", self.slice_up)
             self._imagelabel[i].bind("<Button 5>", self.slice_down)
+            self._imagelabel[i].bind("<B1-Motion>", self.motion_image)
 
     def add_slice_bar(self, slice_frame):
         """Add a slice selection options to slice_frame.
@@ -466,7 +468,7 @@ class VisualVolumes(MyFrame):
 
         #Segmentation is separated into binary segmentations
         #Also, segm contains 3 binary segmentations
-        if len(self.selected_idx_list) > 0:
+        if len(self.selected_id_list) > 0:
             segm = utils.get_separate_labels_for_display(self.segm_disp)
         else:
             segm = utils.get_separate_labels(self.segm)
@@ -638,6 +640,27 @@ class VisualVolumes(MyFrame):
         """ Select a supervoxel and color it in blue. 
         Called when clicked on an image. """
         
+        supervoxel_id = self._get_supervoxel_id(event.x, event.y)
+        self._update_selected_id_list(supervoxel_id)
+        
+    def motion_image(self, event):
+        """ Select multiple supervoxels and color it in blue. 
+        Called when clicked and motioned on an image. """
+        
+        supervoxel_id = self._get_supervoxel_id(event.x, event.y)
+        self._update_selected_id_list(supervoxel_id, unselect=False)
+        
+#     def all_image(self, *args):
+#         """ Select multiple supervoxels and color it in blue. 
+#         Called when clicked and motioned on an image. """
+#         
+#         supervoxel_ids = list(np.unique(self.supervoxel_id_slice))
+#         supervoxel_ids.remove(0)
+#         self._update_selected_id_list(supervoxel_ids)
+        
+    def _get_supervoxel_id(self, eventx, eventy):
+        """ Get the supervoxel id of the given mouse position. """
+        
         #the size of the image:
         #0 element of image corresponds to 1 element
         #of supervoxel_id_slice and vice versa
@@ -646,11 +669,12 @@ class VisualVolumes(MyFrame):
         #coordinates of the voxel
         #Since the displayed pixels range from 1 to lenght+1,
         #need to subtract 1 from the coordinates
-        x_coordinate_supervoxel = (event.x - 1) *\
+#         print self.supervoxel_id_slice.shape
+        x_coordinate_supervoxel = (eventx - 1) *\
                                   len(self.supervoxel_id_slice[0]) /\
                                   self.image_size[0]
 
-        y_coordinate_supervoxel = (event.y - 1) *\
+        y_coordinate_supervoxel = (eventy - 1) *\
                                   len(self.supervoxel_id_slice) /\
                                   self.image_size[1]
 
@@ -661,46 +685,61 @@ class VisualVolumes(MyFrame):
                        z_coordinate_supervoxel]
         
         selected_id = self.supervoxel_id_slice[coordinates[1], coordinates[0]]
-        selected_idx = np.where(self.supervoxel_id == selected_id)
+        return selected_id
         
-        self._select_supervoxel(selected_idx)
-        
-    def _select_supervoxel(self, selected_idx, add_to_undo=True):
+    def _update_selected_id_list(self, selected_id, add_to_undo=True, unselect=True):
         """ Depending whether this supervoxel is already selected, mark
         or unmark the supervoxel. """
         
-        if not self._check_idx_selected(selected_idx):
-            self.selected_idx_list.append(selected_idx)
-            print 'Selecting supervoxel'
+        if isinstance(selected_id, list):
+            if unselect:
+                if all([sid in self.selected_id_list for sid in selected_id]):
+                    map(self.selected_id_list.remove, selected_id)
+                else:
+                    self.selected_id_list.extend(selected_id)
+            else:
+                if not all([sid in self.selected_id_list for sid in selected_id]):
+                    self.selected_id_list.extend(selected_id)
+                else:
+                    return #nothing changed                    
         else:
-            print 'Unselecting supervoxel'
+            if unselect:
+                if selected_id in self.selected_id_list:
+                    self.selected_id_list.remove(selected_id)
+                else:
+                    self.selected_id_list.append(selected_id)
+            else:
+                if selected_id not in self.selected_id_list:
+                    self.selected_id_list.append(selected_id)
+                else:
+                    return #nothing changed
+        print 'Selected supervoxels: %s' % str(self.selected_id_list)
+            
         if add_to_undo:
-            action = selected_idx, None, None
+            action = selected_id, None, None
             self.undo_stack.append(action)
+            
+        self.update_segm_display()
         
+    def update_segm_display(self):
+        """ Color all supervoxels with ids in self.selected_id_list blue
+        in self.segm_disp. """
+        
+        #Selection is updated for visualisation
         self.segm_disp = self.segm.copy()
-        for selected_idx in (self.selected_idx_list):    
-            #Segmentation is updated with new labels
-            #Old label is saved for undo and redo actions
-            self.segm_disp[selected_idx[0], selected_idx[1], selected_idx[2]] = 4
+        if len(self.selected_id_list) == 1:
+            mask = self.supervoxel_id == self.selected_id_list[0]            
+        elif len(self.selected_id_list) > 1:
+            ind1d = np.in1d(self.supervoxel_id.flatten(), self.selected_id_list)
+            mask = np.reshape(ind1d, self.supervoxel_id.shape)
+        else:
+            mask = np.zeros_like(self.supervoxel_id)
+        
+        selected_idx = np.where(mask)
+        self.segm_disp[selected_idx[0], selected_idx[1], selected_idx[2]] = 4
             
         self.disp_im()
         
-    def _check_idx_selected(self, selected_idx):
-        """ If the given coordinates of te supervoxel are already in the
-        list, remove them, otherwise, add them. """
-        
-        for i in range(len(self.selected_idx_list)):
-            selected_idx_from_list = self.selected_idx_list[i]
-            
-            if all([np.array_equal(selected_idx_from_list[j], 
-                                   selected_idx[j]) \
-                    for j in range(3)]):
-                del self.selected_idx_list[i]
-                return True
-            
-        return False        
-            
     def label_change(self, event):
         """When clicking right on a supervoxel, give a drop-down list
         with labels to change to."""
@@ -712,30 +751,30 @@ class VisualVolumes(MyFrame):
                              value=0,
                              command=lambda\
                              arg0=0,
-                             arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
+                             arg1=self.selected_id_list: self.change_label_onclick(arg0, arg1))
 
         self.menu\
             .add_radiobutton(label=labels[0],
                              value=3,
                              command=lambda\
                              arg0=3,
-                             arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
+                             arg1=self.selected_id_list: self.change_label_onclick(arg0, arg1))
 
         self.menu\
             .add_radiobutton(label=labels[1],
                              value=2,
                              command=lambda\
                              arg0=2,
-                             arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
+                             arg1=self.selected_id_list: self.change_label_onclick(arg0, arg1))
         self.menu\
             .add_radiobutton(label=labels[2],
                              value=1,
                              command=lambda\
                              arg0=1,
-                             arg1=self.selected_idx_list: self.change_label_onclick(arg0, arg1))
+                             arg1=self.selected_id_list: self.change_label_onclick(arg0, arg1))
         self.menu.tk_popup(event.x_root, event.y_root)
 
-    def change_label_onclick(self, new_label, selected_idx_list):
+    def change_label_onclick(self, new_label, selected_id_list):
         """Changing the label of the supervoxel
 
         cooordinates is a list of the ids of the selected voxel.
@@ -754,9 +793,10 @@ class VisualVolumes(MyFrame):
         #Empty the redo_stack whenever segmentation is changed by user
         self.redo_stack = []
 
-        for selected_idx in (self.selected_idx_list):
+        for selected_id in (self.selected_id_list):
             #Segmentation is updated with new labels
             #Old label is saved for undo and redo actions
+            selected_idx = np.where(self.supervoxel_id == selected_id)
             old_label = self.segm[selected_idx[0], selected_idx[1], selected_idx[2]]
             old_label = old_label[0]
             self.segm[selected_idx[0], selected_idx[1], selected_idx[2]] = new_label
@@ -776,11 +816,11 @@ class VisualVolumes(MyFrame):
             action = selected_idx, old_label, new_label
             self.undo_stack.append(action)
             
-        self.selected_idx_list = []
+        self.selected_id_list = []
         self.disp_im()
 
     def change_intensity(self, event):
-        """ Change the intesity of the images based on the hist slider."""
+        """ Change the intensity of the images based on the hist slider."""
         slider = event.widget
         i = self.histogram_sliders.index(slider)
 
@@ -859,11 +899,11 @@ class VisualVolumes(MyFrame):
         if len(self.undo_stack) > 0:
             action = self.undo_stack.pop()
             self.redo_stack.append(action)
-            selected_idx, old_label, _ = action
+            selected_id, old_label, _ = action
             if old_label is not None:
-                self._change_label_supervoxel(old_label, selected_idx)
+                self._change_label_supervoxel(old_label, selected_id)
             else:
-                self._select_supervoxel(selected_idx, add_to_undo=False)
+                self._update_selected_id_list(selected_id, add_to_undo=False)
             self.disp_im()
 
     def redo_action(self, *args):
@@ -876,11 +916,11 @@ class VisualVolumes(MyFrame):
         if len(self.redo_stack) > 0:
             action = self.redo_stack.pop()
             self.undo_stack.append(action)
-            selected_idx, _, new_label = action
+            selected_id, _, new_label = action
             if new_label is not None:
-                self._change_label_supervoxel(new_label, selected_idx)
+                self._change_label_supervoxel(new_label, selected_id)
             else:
-                self._select_supervoxel(selected_idx, add_to_undo=False)
+                self._update_selected_id_list(selected_id, add_to_undo=False)
             self.disp_im()    
             
     def _change_label_supervoxel(self, new_label, selected_idx):
