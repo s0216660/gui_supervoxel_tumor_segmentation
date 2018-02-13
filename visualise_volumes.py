@@ -25,6 +25,8 @@ from tkFileDialog import asksaveasfilename
 
 import numpy as np
 
+import SimpleITK as sitk
+
 from PIL import ImageTk
 from PIL import ImageFilter
 from PIL import Image as ImagePIL
@@ -239,6 +241,7 @@ class VisualVolumes(MyFrame):
             self._imagelabel[i].bind("<Button 4>", self.slice_up)
             self._imagelabel[i].bind("<Button 5>", self.slice_down)
             self._imagelabel[i].bind("<B1-Motion>", self.motion_image)
+            self._imagelabel[i].bind("<Double-Button-1>", self.select_connected)
 
     def add_slice_bar(self, slice_frame):
         """Add a slice selection options to slice_frame.
@@ -649,6 +652,17 @@ class VisualVolumes(MyFrame):
         
         supervoxel_id = self._get_supervoxel_id(event.x, event.y)
         self._update_selected_id_list(supervoxel_id, unselect=False)
+        
+    def select_connected(self, event):
+        
+        supervoxel_id = self._get_supervoxel_id(event.x, event.y)
+        label = self.segm[self.supervoxel_id == supervoxel_id][0]
+        
+        im = sitk.GetImageFromArray((self.segm==label).astype(np.int))
+        connected = sitk.GetArrayFromImage(sitk.ConnectedComponent(im))
+        clabel = connected[self.supervoxel_id == supervoxel_id][0]
+        supervoxel_ids = list(np.unique(self.supervoxel_id[connected==clabel]))
+        self._update_selected_id_list(supervoxel_ids)
         
 #     def all_image(self, *args):
 #         """ Select multiple supervoxels and color it in blue. 
