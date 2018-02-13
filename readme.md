@@ -1,11 +1,17 @@
 # Aim
 
 This GUI has been set up to allow to 
+
 1. Load a bunch of patient directories, and
+
 2. Iterate over patients and
+
    - visualize their modality images,
+   
    - overlay a segmentation,
+   
    - overlay a supervoxel map,
+   
    - allow to change the segmentation by changing the segmentation labels of the supervoxels.
 
 # Run
