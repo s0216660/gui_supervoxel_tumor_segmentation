@@ -21,7 +21,20 @@ MODALITY_PREFIXES = ['t1','t1c','t2','fla'] # for the modality paths
 
 > Please make sure your image exstensions are in ['.nii', '.nii.gz', '.mha']!
 
-Once the filenames are set, execute the main file to run the gui:
+Additionally, you might also want to specify the labels and the colors corresponing to the integers in your segmentation file. These are specified in visualise_volumes.py:
+
+~~~~
+labels = ['Enhanced','Non-active tumor','Edema'] # means label '1' corresponds to 'Enhanced' label '2' to 'Non-active tumor' and so on.
+red = (220, 50, 0)
+green = (100, 165, 50)
+yellow = (205, 190, 35)
+label_colors = [red, green, yellow] # means label '1' will be visualized in red, label '2'in green and so on.
+label_colors_d = ['red','green','yellow'] # describe the colors in label_colors
+selected = (0, 0, 255) # color of the supervoxels that are currently selected
+~~~~
+
+
+Once the filenames (and the segmentation colors) are set, execute the main file to run the gui:
 
 ~~~~
 python main_correct_segmentations.py
