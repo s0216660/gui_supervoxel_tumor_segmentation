@@ -44,4 +44,3 @@ MODALITY_PREFIXES = ['t1','t1c','t2','fla'] # for the modality paths
 ~~~~
 python main_correct_segmentations.py
 ~~~~
-    In this setting, the gui will ask you to supply a path to a direcory containing multiple patients.
