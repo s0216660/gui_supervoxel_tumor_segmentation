@@ -1,8 +1,11 @@
 # Code
 
 - main = ./main_correct_segmentations.py
+
    This module allows you to run the gui
+   
 - visualize_volumes.py
+
     This module allows to visualize multiple modalities. It also loads a segmentation and supervoxel map, and allows you to change the segmentation by changing the labels of supervoxels.
    
 Helpers:
