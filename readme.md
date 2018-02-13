@@ -33,15 +33,15 @@ Helpers:
     - SUPERVOXEL_PREFIX: the basename (without extension) of the supervoxel files within the patient folders.
     - MODALITY_PREFIXES: the basenames (without extension) of the modality files within the patient folders.
     These are defined in main_correct_segmentations.py:
-    ~~~~
-    # Define basenames (without extension) that allow to find the correct paths
-    SEGM_PREFIX = 'gt' # for the segmentation path
-    SUPERVOXEL_PREFIX = 'supervoxels' # for the supervoxel path
-    MODALITY_PREFIXES = ['t1','t1c','t2','fla'] # for the modality paths
-    ~~~~
+~~~~
+# Define basenames (without extension) that allow to find the correct paths
+SEGM_PREFIX = 'gt' # for the segmentation path
+SUPERVOXEL_PREFIX = 'supervoxels' # for the supervoxel path
+MODALITY_PREFIXES = ['t1','t1c','t2','fla'] # for the modality paths
+~~~~
 
 2. To run, execute main_correct_segmentations.py:
-    ~~~~
-    python main_correct_segmentations.py
-    ~~~~
+~~~~
+python main_correct_segmentations.py
+~~~~
     In this setting, the gui will ask you to supply a path to a direcory containing multiple patients.
