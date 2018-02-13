@@ -1,30 +1,12 @@
-# Code
+# Aim
 
-- main = ./main_correct_segmentations.py
-    
-    This module allows you to run the gui
-   
-- visualize_volumes.py
-
-    This module allows to visualize multiple modalities. It also loads a segmentation and supervoxel map, and allows you to change the segmentation by changing the labels of supervoxels.
-   
-Helpers:
-
-- matrix_slicing.py
-
-    Allows to manipulate numpy arrays for visualisation purposes (i.e. select slices at certain indices)
-    
-- LinkedScrollBar.py
-
-     Substructure for the gui that allows to scroll through image slices
-     
-- my_frame.py
-
-     Contains the parent class of the gui
-     
-- own_itk.py
-
-     Allows to load and read medical images into numpy arrays for example.
+This GUI has been set up to allow to 
+1. Load a bunch of patient directories, and
+2. Iterate over patients and
+   - visualize their modality images,
+   - overlay a segmentation,
+   - overlay a supervoxel map,
+   - allow to change the segmentation by changing the segmentation labels of the supervoxels.
 
 # Run
 
@@ -58,3 +40,32 @@ The GUI will then,
 2. Load those patients and present them to you in a list,
 
 3. Once you click on a patient, it will allow you to press the visualize button to visualize the modality images and the segmentation found in that patient folder.
+
+
+# Code
+
+- main = ./main_correct_segmentations.py
+    
+    This module allows you to run the gui
+   
+- visualize_volumes.py
+
+    This module allows to visualize multiple modalities. It also loads a segmentation and supervoxel map, and allows you to change the segmentation by changing the labels of supervoxels.
+   
+Helpers:
+
+- matrix_slicing.py
+
+    Allows to manipulate numpy arrays for visualisation purposes (i.e. select slices at certain indices)
+    
+- LinkedScrollBar.py
+
+     Substructure for the gui that allows to scroll through image slices
+     
+- my_frame.py
+
+     Contains the parent class of the gui
+     
+- own_itk.py
+
+     Allows to load and read medical images into numpy arrays for example.
