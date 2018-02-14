@@ -40,12 +40,13 @@ import supervoxel_operations as utils
 
 ######################################################################
 
-labels = ['Enhanced','Non-active tumor','Edema']
+labels = ['Edema','Non-active tumor','Enhanced']
 yellow = (205, 190, 35)
 green = (100, 165, 50)
 red = (220, 50, 0)
-label_colors = [red, green, yellow]
-label_colors_d = ['red','green','yellow']
+label_colors = [yellow, green, red]
+label_colors_d = ['yellow','green','red']
+label_hot_keys = ['g','s','d','f'] # for background, label 0, label 1, ...
 selected = (0, 0, 255)
 
 ######################################################################
@@ -84,7 +85,7 @@ class VisualVolumes(MyFrame):
         and paths for modalities, segmentation and supervoxels"""
 
         #Alpha value for opacity initialization
-        self.alpha = 0.3
+        self.alpha = 0.2
 
         self._axis = 0
 
@@ -105,7 +106,14 @@ class VisualVolumes(MyFrame):
         #Keybindings for undo and redo actions
         self.bind('<Control-z>', self.undo_action)
         self.bind('<Control-y>', self.redo_action)
-#         self.bind('<Control-a>', self.all_image)        
+        self.bind('<t>', self.toggle_segm)     
+        self.bind("<h>", self.set_healthy)
+        self.bind("<r>", self.unselect_all)
+        for j in range(len(label_hot_keys)):
+            self.bind("<%s>" % label_hot_keys[j],
+                     lambda event, arg0=j : self.change_label(arg0))   
+        self.bind("<Right>", self.slice_up)
+        self.bind("<Left>", self.slice_down)
         self.focus_set()
 
     def _set_images(self, segm_path, image_paths, supervoxel_id_path):
@@ -237,7 +245,7 @@ class VisualVolumes(MyFrame):
 
             # Attach commands to the image frames
             self._imagelabel[i].bind("<Button-1>", self.click_image)
-            self._imagelabel[i].bind("<Button-3>", self.label_change)
+            self._imagelabel[i].bind("<Button-3>", self.label_dropdown)
             self._imagelabel[i].bind("<Button 4>", self.slice_up)
             self._imagelabel[i].bind("<Button 5>", self.slice_down)
             self._imagelabel[i].bind("<B1-Motion>", self.motion_image)
@@ -355,54 +363,38 @@ class VisualVolumes(MyFrame):
             self.tumor_checkbox_label.grid(column=0, row=ind)
 
             ind += 1
-            self.cb1_var = IntVar()
-            self.cb_1 = Checkbutton(_sub_sub_frame2,
-                                    text='%s (%s)' % (labels[0], label_colors_d[0]),
-                                    variable=self.cb1_var,
-                                    command=lambda : self.change_segm(0))
-            self.cb_1.grid(column=0,
-                                          row=ind,
-                                          sticky=['w', 'n', 'e'])
-            ind += 1
-            self.cb2_var = IntVar()
-            self.cb_2 = Checkbutton(_sub_sub_frame2,
-                                    text='%s (%s)' % (labels[1], label_colors_d[1]),
-                                    variable=self.cb2_var,
-                                    command=lambda : self.change_segm(1))
-            self.cb_2.grid(column=0,
-                                          row=ind,
-                                          sticky=['w', 'n', 'e'])
-            ind += 1
-            self.cb3_var = IntVar()
-            self.cb_3 = Checkbutton(_sub_sub_frame2,
-                                    text='%s (%s)' % (labels[2], label_colors_d[2]),
-                                    variable=self.cb3_var,
-                                    command=lambda : self.change_segm(2))
-            self.cb_3.grid(column=0,
-                                         row=ind,
-                                         sticky=['w', 'n', 'e'])
-            ind += 1
-            self.cb4_var = IntVar()
-            self.cb_4 = Checkbutton(_sub_sub_frame2,
+            self.tumor_cb = []
+            for i in range(len(labels)):
+                tumor_button = IntVar()
+                this_text = '%s (%s <%s>)' % (labels[i], 
+                                              label_colors_d[i], 
+                                              label_hot_keys[i+1])
+                button = Checkbutton(_sub_sub_frame2,
+                                        text=this_text,
+                                        variable=tumor_button,
+                                        command=lambda arg0=i: self.change_segm(arg0))
+                button.grid(column=0, row=ind, sticky=['w', 'n', 'e'])
+                self.tumor_cb.append(tumor_button)
+                ind += 1
+                
+            self.all_tumor_bc = IntVar()
+            button = Checkbutton(_sub_sub_frame2,
                                     text="All tumors",
-                                    variable=self.cb4_var,
+                                    variable=self.all_tumor_bc,
                                     command=lambda : self.change_segm(3))
-            self.cb_4.grid(column=0,
-            		   row=ind,
-                           sticky=['w', 'n', 'e'])
+            button.grid(column=0,
+                        row=ind,
+                        sticky=['w', 'n', 'e'])
 
             ind += 1
-            self.cb5_var = IntVar()
-            self.cb_5 = Checkbutton(_sub_sub_frame2,
+            self.no_tumor_bc = IntVar()
+            button = Checkbutton(_sub_sub_frame2,
                                     text="No tumors",
-                                    variable=self.cb5_var,
+                                    variable=self.no_tumor_bc,
                                     command=lambda : self.change_segm(4))
-            self.cb_5.grid(column=0,
+            button.grid(column=0,
                            row=ind,
                            sticky=['w', 'n', 'e'])
-            #print self.cb_4
-            #self.bind('<a>', self.cb_4.toggle)
-            #self.bind('<s>', self.cb_5.toggle)
 
             ind += 1
             alpha_label = Label(_sub_sub_frame2, text="Opacity:")
@@ -472,27 +464,21 @@ class VisualVolumes(MyFrame):
         #Segmentation is separated into binary segmentations
         #Also, segm contains 3 binary segmentations
         if len(self.selected_id_list) > 0:
-            segm = utils.get_separate_labels_for_display(self.segm_disp)
+            segm = utils.get_separate_labels(self.segm_disp, length=len(labels)+1)
         else:
-            segm = utils.get_separate_labels(self.segm)
+            segm = utils.get_separate_labels(self.segm, length=len(labels))
         r, g, b = image.convert('RGB').split()
         rgb = [r, g, b]
 
         #Variable that contains selected colors
         colors = [None for _ in range(len(segm))]
 
-        #Add edema if check box selected
-        if hasattr(self, 'cb1_var') and self.cb1_var.get() == 1:
-            colors[0] = label_colors[0]
+        #Add labels if their check box is selected
+        if hasattr(self, 'tumor_cb'):
+            for i in range(len(labels)):
+                if self.tumor_cb[i].get() == 1:
+                    colors[i] = label_colors[i]
 
-        #Add non active tumor if check box selected
-        if hasattr(self, 'cb2_var') and self.cb2_var.get() == 1:
-            colors[1] = label_colors[1]
-
-        #Add active tumor if check box selected
-        if hasattr(self, 'cb3_var') and self.cb3_var.get() == 1:
-            colors[2] = label_colors[2]
-        
         if len(colors)==4:
             colors[3] = selected
 
@@ -664,13 +650,21 @@ class VisualVolumes(MyFrame):
         supervoxel_ids = list(np.unique(self.supervoxel_id[connected==clabel]))
         self._update_selected_id_list(supervoxel_ids)
         
-#     def all_image(self, *args):
-#         """ Select multiple supervoxels and color it in blue. 
-#         Called when clicked and motioned on an image. """
-#         
-#         supervoxel_ids = list(np.unique(self.supervoxel_id_slice))
-#         supervoxel_ids.remove(0)
-#         self._update_selected_id_list(supervoxel_ids)
+    def unselect_all(self, *args):
+        """ Unselect all selected supervoxels. """
+         
+        print 'Emptying selection'
+        self.selected_id_list = []
+        self.disp_im()
+        
+    def set_healthy(self, *args):
+        """ Select all supervoxels in this slice and set them to 
+        background. """
+         
+        print 'Setting all supervoxels in slice to background'
+        supervoxel_ids = list(np.unique(self.supervoxel_id_slice))
+        supervoxel_ids.remove(0)
+        self.change_label(0, supervoxel_ids=supervoxel_ids)
         
     def _get_supervoxel_id(self, eventx, eventy):
         """ Get the supervoxel id of the given mouse position. """
@@ -754,83 +748,77 @@ class VisualVolumes(MyFrame):
             
         self.disp_im()
         
-    def label_change(self, event):
+    def label_dropdown(self, event):
         """When clicking right on a supervoxel, give a drop-down list
         with labels to change to."""
+
+        if len(self.selected_id_list) == 0:
+            return
 
         # Adding the selection menu with radio  buttons.
         self.menu = Menu(self, tearoff=0)
         self.menu\
             .add_radiobutton(label="Background",
                              value=0,
-                             command=lambda\
-                             arg0=0,
-                             arg1=self.selected_id_list: self.change_label_onclick(arg0, arg1))
+                             command=lambda arg0=0: \
+                                        self.change_label(arg0))
 
         self.menu\
             .add_radiobutton(label=labels[0],
                              value=3,
-                             command=lambda\
-                             arg0=3,
-                             arg1=self.selected_id_list: self.change_label_onclick(arg0, arg1))
+                             command=lambda arg0=1: \
+                                        self.change_label(arg0))
 
         self.menu\
             .add_radiobutton(label=labels[1],
                              value=2,
-                             command=lambda\
-                             arg0=2,
-                             arg1=self.selected_id_list: self.change_label_onclick(arg0, arg1))
+                             command=lambda arg0=2: \
+                                        self.change_label(arg0))
         self.menu\
             .add_radiobutton(label=labels[2],
                              value=1,
-                             command=lambda\
-                             arg0=1,
-                             arg1=self.selected_id_list: self.change_label_onclick(arg0, arg1))
+                             command=lambda arg0=3: \
+                                        self.change_label(arg0))
         self.menu.tk_popup(event.x_root, event.y_root)
 
-    def change_label_onclick(self, new_label, selected_id_list):
+    def change_label(self, new_label, supervoxel_ids=None):
         """Changing the label of the supervoxel
-
-        cooordinates is a list of the ids of the selected voxel.
-        #coordinates[0] - x coordinate,
-        #coordinate[1] - y coordinate,
-        #coordinate[2] - z coordinate
 
         new label is the type of pixel 0 - background,
         #3 - edema, 2 - Non-active tumor and 1 - Active tumor
 
-        self.segms is the array with segmentations
+        self.segm is the array with segmentations
         self.supervoxel_ids is the the array with the supervoxels
 
         """
+        
+        empty_selected_id_list = False
+        if supervoxel_ids is None:
+            empty_selected_id_list = True
+            supervoxel_ids = self.selected_id_list
 
         #Empty the redo_stack whenever segmentation is changed by user
         self.redo_stack = []
 
-        for selected_id in (self.selected_id_list):
+        for selected_id in (supervoxel_ids):
             #Segmentation is updated with new labels
             #Old label is saved for undo and redo actions
-            selected_idx = np.where(self.supervoxel_id == selected_id)
-            old_label = self.segm[selected_idx[0], selected_idx[1], selected_idx[2]]
+            region = self.supervoxel_id == selected_id
+            old_label = self.segm[region]
             old_label = old_label[0]
-            self.segm[selected_idx[0], selected_idx[1], selected_idx[2]] = new_label
+            self.segm[region] = new_label
     
             # if the checkboxes are unselected but changed, they are automatically checked.
-            if new_label == 3:
-                self.cb1_var.set(1)
-                self.cb5_var.set(0)
-            if new_label == 2:
-                self.cb2_var.set(1)
-                self.cb5_var.set(0)
-            if new_label == 1:
-                self.cb3_var.set(1)
-                self.cb5_var.set(0)
+            if new_label > 0:
+                self.tumor_cb[new_label-1].set(1)
+                self.no_tumor_bc.set(0)
     
             #Actions as coordinates, old_label and new_label to go switch between segmentation states
-            action = selected_idx, old_label, new_label
+            action = selected_id, old_label, new_label
             self.undo_stack.append(action)
             
-        self.selected_id_list = []
+        if empty_selected_id_list:
+            self.selected_id_list = []
         self.disp_im()
 
     def change_intensity(self, event):
@@ -869,30 +857,49 @@ class VisualVolumes(MyFrame):
     def change_segm(self, button_ind):
         """ Show or hide the segmentation from the images."""
 
+        # if tumor type is (un)selected, set all_tumors and no_tumors 
+        # accordingly
         if button_ind <= 2:
-            if self.cb1_var.get() + self.cb2_var.get() + self.cb3_var.get() < 3:
-                self.cb4_var.set(0)
+            checked = [self.tumor_cb[i].get() for i in range(len(labels))]
+            checked_sum = sum(checked)
+            if checked_sum < len(labels):
+                self.all_tumor_bc.set(0)
             else:
-                self.cb4_var.set(1)
-            if self.cb1_var.get() + self.cb2_var.get() + self.cb3_var.get() > 0:
-                self.cb5_var.set(0)
+                self.all_tumor_bc.set(1)
+            if checked_sum > 0:
+                self.no_tumor_bc.set(0)
             else:
-                self.cb5_var.set(1)
+                self.no_tumor_bc.set(1)
 
+        # if all_tumors or no_tumors is (un)selected, allign the other
+        # buttons
         if button_ind == 3:
-            self.cb1_var.set(1)
-            self.cb2_var.set(1)
-            self.cb3_var.set(1)
-            self.cb4_var.set(1)
-            self.cb5_var.set(0)
+            for i in range(len(labels)):
+                self.tumor_cb[i].set(1)
+            self.all_tumor_bc.set(1)
+            self.no_tumor_bc.set(0)
         if button_ind == 4:
-            self.cb1_var.set(0)
-            self.cb2_var.set(0)
-            self.cb3_var.set(0)
-            self.cb4_var.set(0)
-            self.cb5_var.set(1)
+            for i in range(len(labels)):
+                self.tumor_cb[i].set(0)
+            self.all_tumor_bc.set(0)
+            self.no_tumor_bc.set(1)
         self.disp_im()
-
+        
+    def toggle_segm(self, *args):
+        
+        # if at least one tumor type is visualized, 
+        # remove all tumors (set no_tumors) and supervoxels
+        checked = [self.tumor_cb[i].get() for i in range(len(labels))]
+        checked_sum = sum(checked)
+        if checked_sum > 0:
+            print 'Visualizing no tumors'
+            self.change_segm(4)
+        # if no tumor type is visualized, set all_tumors
+        # visualize all tumors (set all_tumors) and supervoxels
+        else:
+            print 'Visualizing all tumors'
+            self.change_segm(3)
+        
     def change_supervoxels(self):
         """ Toggle between showing supervoxels or not."""
         self.show_supervoxels = not self.show_supervoxels
@@ -937,7 +944,7 @@ class VisualVolumes(MyFrame):
                 self._update_selected_id_list(selected_id, add_to_undo=False)
             self.disp_im()    
             
-    def _change_label_supervoxel(self, new_label, selected_idx):
+    def _change_label_supervoxel(self, new_label, selected_id):
         """ Change the label of the supervoxel
 
         cooordinates is a list of the ids of the selected voxel.
@@ -947,7 +954,7 @@ class VisualVolumes(MyFrame):
         self.segms is the array with segmentations
         self.supervoxel_ids is the the array with the supervoxels"""
         #Segmentation is updated with new labels
-        self.segm[selected_idx[0], selected_idx[1], selected_idx[2]] = new_label
+        self.segm[self.supervoxel_id == selected_id] = new_label
         self.disp_im()   
         
     #################### Save or load a segmentation ###################        

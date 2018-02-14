@@ -9,11 +9,10 @@ Created on May 8, 2017
 
 @author: alberts
 '''
+
+import os
 import numpy as np
-import itertools
 import SimpleITK as sitk
-import scipy.ndimage as spim
-from collections import Counter
 
 import own_itk as oitk
 
@@ -158,23 +157,14 @@ def write_separate_labels(hard_segmentation_path):
     oitk.write_itk_image(oitk.make_itk_image(tumor_core, itk_proto), tumor_core_path)
     oitk.write_itk_image(oitk.make_itk_image(whole_tumor, itk_proto), whole_tumor_path)
     
-def get_separate_labels(segmentation_image):
+def get_separate_labels(segmentation_image, length=None):
     """ Separate each labels as binary array"""
-    #label is the type of pixel 0 - background, 1 - edema, 2 - Necrotic tumor and 3 - Active tumor
-    edema = (segmentation_image == 1).astype('uint8')
-    necrotic_tumor = (segmentation_image == 2).astype('uint8')
-    active_tumor = (segmentation_image == 3).astype('uint8')
+    
+    if length is None:
+        length = np.max(segmentation_image)
+    list_of_bin_segm = []
+    for i in range(1, length+1):
+        list_of_bin_segm.append((segmentation_image == i).astype('uint8'))
     
     #Order is important to display the types
-    return [active_tumor, necrotic_tumor, edema]
-
-def get_separate_labels_for_display(segmentation_image):
-    """ Separate each labels as binary array"""
-    #label is the type of pixel 0 - background, 1 - edema, 2 - Necrotic tumor and 3 - Active tumor
-    edema = (segmentation_image == 1).astype('uint8')
-    necrotic_tumor = (segmentation_image == 2).astype('uint8')
-    active_tumor = (segmentation_image == 3).astype('uint8')
-    selected = (segmentation_image == 4).astype('uint8')
-    
-    #Order is important to display the types
-    return [active_tumor, necrotic_tumor, edema, selected]
+    return list_of_bin_segm

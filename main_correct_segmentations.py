@@ -307,12 +307,6 @@ class SelectPaths(MyFrame):
             if os.path.exists(os.path.join(patient_path,
                                            'corrected_'+SEGM_PREFIX+'_'+patient+'.nii.gz')):
                 patient = patient + ' - segmentation corrected'
-            if os.path.exists(os.path.join(patient_path,
-                                           patient+'_mask.nii.gz')):
-                patient = patient + ' - preprocessed'
-            if os.path.exists(os.path.join(patient_path,
-                                           'post_results')):
-                patient = patient + ', segmented'
             self.listbox_patients.insert(END, patient)
 
 if __name__ == "__main__":
