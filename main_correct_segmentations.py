@@ -32,8 +32,8 @@ if not os.path.exists(DATA_PATH):
     DATA_PATH = os.environ.get('HOME')
 
 # Define basenames (without extension) that allow to find the correct paths
-SEGM_PREFIX = 'gt' # for the segmentation path
-SUPERVOXEL_PREFIX = 'supervoxels' # for the supervoxel path
+SEGM_PREFIX = 'hard_slic_rf' # for the segmentation path
+SUPERVOXEL_PREFIX = 'slic_supervoxels' # for the supervoxel path
 MODALITY_PREFIXES = ['t1','t1c','t2','fla'] # for the modality paths
 
 #########################################################################

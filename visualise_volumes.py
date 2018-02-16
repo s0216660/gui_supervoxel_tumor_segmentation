@@ -24,6 +24,7 @@ from tkFileDialog import askopenfilename
 from tkFileDialog import asksaveasfilename
 
 import numpy as np
+import scipy.ndimage as spim
 
 import SimpleITK as sitk
 
@@ -109,6 +110,7 @@ class VisualVolumes(MyFrame):
         self.bind('<t>', self.toggle_segm)     
         self.bind("<h>", self.set_healthy)
         self.bind("<r>", self.unselect_all)
+        self.bind("<c>", self.print_com)
         for j in range(len(label_hot_keys)):
             self.bind("<%s>" % label_hot_keys[j],
                      lambda event, arg0=j : self.change_label(arg0))   
@@ -663,7 +665,8 @@ class VisualVolumes(MyFrame):
          
         print 'Setting all supervoxels in slice to background'
         supervoxel_ids = list(np.unique(self.supervoxel_id_slice))
-        supervoxel_ids.remove(0)
+        if 0 in supervoxel_ids:
+            supervoxel_ids.remove(0)
         self.change_label(0, supervoxel_ids=supervoxel_ids)
         
     def _get_supervoxel_id(self, eventx, eventy):
@@ -693,6 +696,7 @@ class VisualVolumes(MyFrame):
                        z_coordinate_supervoxel]
         
         selected_id = self.supervoxel_id_slice[coordinates[1], coordinates[0]]
+
         return selected_id
         
     def _update_selected_id_list(self, selected_id, add_to_undo=True, unselect=True):
@@ -747,6 +751,18 @@ class VisualVolumes(MyFrame):
         self.segm_disp[selected_idx[0], selected_idx[1], selected_idx[2]] = 4
             
         self.disp_im()
+        
+    def print_com(self, *args):
+        
+        ind1d = np.in1d(self.supervoxel_id.flatten(), self.selected_id_list)
+        ind3d = np.reshape(ind1d, self.supervoxel_id.shape)        
+        com = spim.measurements.center_of_mass(ind3d)
+        print 'Center of mass'
+        print '\t com : %s' % str(com)
+        if self.segm_path is not None:
+            ID = ('/').join(self.segm_path.split('/')[-2:])
+            print '\t path : %s' % ID
+            print 'com_dict["%s"] = %s' % (ID, str(com))
         
     def label_dropdown(self, event):
         """When clicking right on a supervoxel, give a drop-down list
