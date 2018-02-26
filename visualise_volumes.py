@@ -111,6 +111,7 @@ class VisualVolumes(MyFrame):
         self.bind("<h>", self.set_healthy)
         self.bind("<r>", self.unselect_all)
         self.bind("<c>", self.print_com)
+        self.bind("<i>", self.inverse_selection)
         for j in range(len(label_hot_keys)):
             self.bind("<%s>" % label_hot_keys[j],
                      lambda event, arg0=j : self.change_label(arg0))   
@@ -669,6 +670,14 @@ class VisualVolumes(MyFrame):
             supervoxel_ids.remove(0)
         self.change_label(0, supervoxel_ids=supervoxel_ids)
         
+    def inverse_selection(self, *args):
+        
+        all_ids = np.unique(self.supervoxel_id)
+        new_ids = [sup_id for sup_id in all_ids 
+                   if id not in self.selected_id_list]
+        self.selected_id_list = new_ids
+        self.update_segm_display()        
+        
     def _get_supervoxel_id(self, eventx, eventy):
         """ Get the supervoxel id of the given mouse position. """
         
@@ -760,10 +769,10 @@ class VisualVolumes(MyFrame):
         print 'Center of mass'
         print '\t com : %s' % str(com)
         if self.segm_path is not None:
-            ID = ('/').join(self.segm_path.split('/')[-2:])
+            ID = os.path.basename(self.segm_path).split('.')[0]
             print '\t path : %s' % ID
             print 'com_dict["%s"] = %s' % (ID, str(com))
-        
+            
     def label_dropdown(self, event):
         """When clicking right on a supervoxel, give a drop-down list
         with labels to change to."""

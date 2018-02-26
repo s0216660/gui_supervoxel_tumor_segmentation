@@ -27,7 +27,7 @@ import help_window
 #########################################################################
 
 # Define initial path to load data from
-DATA_PATH = '/home/alberts/Documents/Data/BRATS/2016_/separated_for_gui'
+DATA_PATH = '/home/alberts/Documents/Data/BRATS/2016_/separated_for_interact'
 if not os.path.exists(DATA_PATH):
     DATA_PATH = os.environ.get('HOME')
 
