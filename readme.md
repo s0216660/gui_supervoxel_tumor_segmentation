@@ -1,6 +1,13 @@
 # Aim
 
-This GUI has been set up to allow to load a bunch of patient directories, and visualize their modality images, overlaying a segmentation image and a supervoxel map. More in particular, it allow to change the segmentation by selecting supervoxels and changing their segmentation label.
+## Visualisation
+
+This GUI has been set up to allow to load a bunch of patient directories, and visualize their modality images, overlaying a segmentation image and a supervoxel map.
+
+## Adapting segmentations
+
+When visualizing a patient,the gui allows to change the segmentation by selecting supervoxels and changing their segmentation label. The resulting segmentation can then be saved bly clicking 'Save segmentation'.
+
 
 # Run
 
